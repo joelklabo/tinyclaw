@@ -1,0 +1,5 @@
+# Require review for critical files
+/.github/workflows/ @klabo
+/scripts/check_coverage.sh @klabo
+/contracts/ @klabo
+/spec/ @klabo

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tinyclaw.dev/contracts/tools/ui.tools.json",
+  "title": "UI Tool Outputs",
+  "description": "Schemas for ui.post, ui.edit, and ui.upload tool outputs.",
+  "type": "object",
+  "$defs": {
+    "postOutput": {
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string" },
+        "channelId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["messageId", "channelId"]
+    },
+    "editOutput": {
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string" },
+        "channelId": { "type": "string" },
+        "edited": { "type": "boolean" }
+      },
+      "required": ["messageId", "channelId", "edited"]
+    },
+    "uploadOutput": {
+      "type": "object",
+      "properties": {
+        "fileId": { "type": "string" },
+        "channelId": { "type": "string" },
+        "url": { "type": "string", "format": "uri" }
+      },
+      "required": ["fileId", "channelId"]
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/postOutput" },
+    { "$ref": "#/$defs/editOutput" },
+    { "$ref": "#/$defs/uploadOutput" }
+  ]
+}

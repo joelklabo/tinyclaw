@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tinyclaw.dev/contracts/resources/chat.events.json",
+  "title": "Chat Events Resource",
+  "description": "Schema for inbound chat event payloads.",
+  "type": "object",
+  "properties": {
+    "eventId": { "type": "string" },
+    "eventType": {
+      "type": "string",
+      "enum": ["message", "edit", "delete", "reaction", "typing"]
+    },
+    "channelId": { "type": "string" },
+    "userId": { "type": "string" },
+    "content": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "metadata": { "type": "object" }
+  },
+  "required": ["eventId", "eventType", "channelId", "userId", "timestamp"]
+}

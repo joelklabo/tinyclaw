@@ -1,0 +1,32 @@
+name: hello-world-streaming
+description: Basic streaming response scenario
+
+inbound_events:
+  - type: message
+    data:
+      content: "hi"
+      channel_id: "test-channel"
+      author_id: "test-user"
+
+harness_events:
+  - kind: status
+    data:
+      status: "thinking"
+  - kind: delta
+    data:
+      text: "Hello"
+  - kind: delta
+    data:
+      text: " world"
+  - kind: delta
+    data:
+      text: "!"
+  - kind: final
+    data:
+      text: "Hello world!"
+
+expected_transport_ops:
+  - kind: post
+  - kind: edit
+  - kind: edit
+  - kind: edit

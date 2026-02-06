@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tinyclaw.dev/contracts/logging/agent.logging.json",
+  "title": "Agent Logging Payloads",
+  "description": "Schemas for harness RunEvent log payloads: agent.phase, agent.delta, agent.tool, agent.fault, agent.delegate.",
+  "type": "object",
+  "$defs": {
+    "phase": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "agent.phase" },
+        "runId": { "type": "string" },
+        "phase": {
+          "type": "string",
+          "enum": ["thinking", "tool_use", "done"]
+        },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "runId", "phase"]
+    },
+    "delta": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "agent.delta" },
+        "runId": { "type": "string" },
+        "content": { "type": "string" }
+      },
+      "required": ["type", "runId", "content"]
+    },
+    "tool": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "agent.tool" },
+        "runId": { "type": "string" },
+        "toolName": { "type": "string" },
+        "input": { "type": "object" },
+        "output": { "type": "object" }
+      },
+      "required": ["type", "runId", "toolName"]
+    },
+    "fault": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "agent.fault" },
+        "runId": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": ["auth", "quota", "transient", "fatal"]
+        },
+        "message": { "type": "string" }
+      },
+      "required": ["type", "runId", "kind", "message"]
+    },
+    "delegate": {
+      "type": "object",
+      "properties": {
+        "type": { "const": "agent.delegate" },
+        "runId": { "type": "string" },
+        "targetAgent": { "type": "string" },
+        "reason": { "type": "string" }
+      },
+      "required": ["type", "runId", "targetAgent"]
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/phase" },
+    { "$ref": "#/$defs/delta" },
+    { "$ref": "#/$defs/tool" },
+    { "$ref": "#/$defs/fault" },
+    { "$ref": "#/$defs/delegate" }
+  ]
+}
