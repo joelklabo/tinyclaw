@@ -20,6 +20,7 @@ type Command struct {
 	Action       Action
 	ScenarioFile string // test: optional scenario file
 	BundleDir    string // replay: required bundle directory
+	ConfigFile   string // test: optional config file path
 }
 
 // Parse parses the given args (os.Args[1:] typically) into a Command.
@@ -41,9 +42,14 @@ func Parse(args []string) (Command, error) {
 }
 
 func parseTest(args []string) (Command, error) {
-	cmd := Command{Action: ActionTest}
-	if len(args) > 0 {
-		cmd.ScenarioFile = args[0]
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	config := fs.String("config", "", "config file path")
+	if err := fs.Parse(args); err != nil {
+		return Command{}, err
+	}
+	cmd := Command{Action: ActionTest, ConfigFile: *config}
+	if fs.NArg() > 0 {
+		cmd.ScenarioFile = fs.Arg(0)
 	}
 	return cmd, nil
 }

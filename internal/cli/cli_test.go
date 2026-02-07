@@ -85,3 +85,23 @@ func TestParseReplayBadFlag(t *testing.T) {
 		t.Fatal("expected error for bad flag")
 	}
 }
+
+func TestParseTestWithConfig(t *testing.T) {
+	cmd, err := Parse([]string{"test", "--config", "my.yaml", "scenario.yaml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd.ConfigFile != "my.yaml" {
+		t.Fatalf("expected config %q, got %q", "my.yaml", cmd.ConfigFile)
+	}
+	if cmd.ScenarioFile != "scenario.yaml" {
+		t.Fatalf("expected scenario %q, got %q", "scenario.yaml", cmd.ScenarioFile)
+	}
+}
+
+func TestParseTestBadFlag(t *testing.T) {
+	_, err := Parse([]string{"test", "--bogus"})
+	if err == nil {
+		t.Fatal("expected error for bad flag")
+	}
+}

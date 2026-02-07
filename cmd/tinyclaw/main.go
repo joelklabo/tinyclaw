@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/klabo/tinyclaw/internal/cli"
-	"github.com/klabo/tinyclaw/internal/version"
 )
 
 func main() {
@@ -17,12 +16,16 @@ func main() {
 
 	switch cmd.Action {
 	case cli.ActionVersion:
-		fmt.Println(version.Version)
+		fmt.Println(cli.Version)
 	case cli.ActionTest:
-		fmt.Fprintln(os.Stderr, "test command not yet implemented")
-		os.Exit(1)
+		if err := cli.RunTest(cmd.ScenarioFile, cmd.ConfigFile); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	case cli.ActionReplay:
-		fmt.Fprintln(os.Stderr, "replay command not yet implemented")
-		os.Exit(1)
+		if err := cli.RunReplay(cmd.BundleDir); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	}
 }

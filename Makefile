@@ -1,10 +1,7 @@
-.PHONY: test system coverage fmt lint build clean
+.PHONY: test coverage fmt lint build clean
 
 test:
 	go test -race -count=1 ./...
-
-system:
-	@echo "system tests not yet implemented"
 
 coverage:
 	./scripts/check_coverage.sh
