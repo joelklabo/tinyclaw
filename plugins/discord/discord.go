@@ -13,6 +13,7 @@ import (
 type Client interface {
 	SendMessage(channelID, content string) (string, error)
 	EditMessage(channelID, messageID, content string) error
+	ChannelTyping(channelID string) error
 	SubscribeMessages(handler func(msg Message)) error
 	Close() error
 }
@@ -144,6 +145,13 @@ func (t *Transport) Post(ctx context.Context, op plugin.OutboundOp) error {
 			return fmt.Errorf("discord: edit requires message_id")
 		}
 		return t.client.EditMessage(channelID, messageID, content)
+
+	case plugin.OutboundTyping:
+		channelID := op.ChannelID
+		if channelID == "" {
+			channelID = t.channelID
+		}
+		return t.client.ChannelTyping(channelID)
 
 	default:
 		return fmt.Errorf("discord: unsupported op kind %q", op.Kind)

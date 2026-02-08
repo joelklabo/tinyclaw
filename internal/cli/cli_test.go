@@ -1,6 +1,9 @@
 package cli
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestParseTest(t *testing.T) {
 	cmd, err := Parse([]string{"test", "scenario.yaml"})
@@ -101,6 +104,83 @@ func TestParseTestWithConfig(t *testing.T) {
 
 func TestParseTestBadFlag(t *testing.T) {
 	_, err := Parse([]string{"test", "--bogus"})
+	if err == nil {
+		t.Fatal("expected error for bad flag")
+	}
+}
+
+func TestParseRun(t *testing.T) {
+	t.Setenv("DISCORD_TOKEN", "test-token")
+	cmd, err := Parse([]string{"run", "--channel", "123456"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd.Action != ActionRun {
+		t.Fatalf("expected action %q, got %q", ActionRun, cmd.Action)
+	}
+	if cmd.Token != "test-token" {
+		t.Fatalf("expected token %q, got %q", "test-token", cmd.Token)
+	}
+	if len(cmd.Channels) != 1 || cmd.Channels[0] != "123456" {
+		t.Fatalf("expected channels [123456], got %v", cmd.Channels)
+	}
+	if cmd.WorkDir != "." {
+		t.Fatalf("expected workdir %q, got %q", ".", cmd.WorkDir)
+	}
+}
+
+func TestParseRunMultipleChannels(t *testing.T) {
+	t.Setenv("DISCORD_TOKEN", "test-token")
+	cmd, err := Parse([]string{"run", "--channel", "111", "--channel", "222"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cmd.Channels) != 2 {
+		t.Fatalf("expected 2 channels, got %d", len(cmd.Channels))
+	}
+}
+
+func TestParseRunCustomWorkDir(t *testing.T) {
+	t.Setenv("DISCORD_TOKEN", "test-token")
+	cmd, err := Parse([]string{"run", "--channel", "123", "--workdir", "/tmp/project"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd.WorkDir != "/tmp/project" {
+		t.Fatalf("expected workdir %q, got %q", "/tmp/project", cmd.WorkDir)
+	}
+}
+
+func TestParseRunWithConfig(t *testing.T) {
+	t.Setenv("DISCORD_TOKEN", "test-token")
+	cmd, err := Parse([]string{"run", "--channel", "123", "--config", "my.yaml"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd.ConfigFile != "my.yaml" {
+		t.Fatalf("expected config %q, got %q", "my.yaml", cmd.ConfigFile)
+	}
+}
+
+func TestParseRunMissingToken(t *testing.T) {
+	os.Unsetenv("DISCORD_TOKEN")
+	_, err := Parse([]string{"run", "--channel", "123"})
+	if err == nil {
+		t.Fatal("expected error for missing DISCORD_TOKEN")
+	}
+}
+
+func TestParseRunMissingChannel(t *testing.T) {
+	t.Setenv("DISCORD_TOKEN", "test-token")
+	_, err := Parse([]string{"run"})
+	if err == nil {
+		t.Fatal("expected error for missing --channel")
+	}
+}
+
+func TestParseRunBadFlag(t *testing.T) {
+	t.Setenv("DISCORD_TOKEN", "test-token")
+	_, err := Parse([]string{"run", "--unknown-flag"})
 	if err == nil {
 		t.Fatal("expected error for bad flag")
 	}

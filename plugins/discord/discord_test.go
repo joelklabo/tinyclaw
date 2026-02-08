@@ -14,14 +14,16 @@ import (
 
 // mockClient implements Client for testing.
 type mockClient struct {
-	mu            sync.Mutex
-	sendFn        func(channelID, content string) (string, error)
-	editFn        func(channelID, messageID, content string) error
-	subscribeFn   func(handler func(msg Message)) error
-	closeFn       func() error
-	lastHandler   func(msg Message)
-	sendCalls     []sendCall
-	editCalls     []editCall
+	mu          sync.Mutex
+	sendFn      func(channelID, content string) (string, error)
+	editFn      func(channelID, messageID, content string) error
+	typingFn    func(channelID string) error
+	subscribeFn func(handler func(msg Message)) error
+	closeFn     func() error
+	lastHandler func(msg Message)
+	sendCalls   []sendCall
+	editCalls   []editCall
+	typingCalls []string
 }
 
 type sendCall struct {
@@ -48,6 +50,16 @@ func (m *mockClient) EditMessage(channelID, messageID, content string) error {
 	m.mu.Unlock()
 	if m.editFn != nil {
 		return m.editFn(channelID, messageID, content)
+	}
+	return nil
+}
+
+func (m *mockClient) ChannelTyping(channelID string) error {
+	m.mu.Lock()
+	m.typingCalls = append(m.typingCalls, channelID)
+	m.mu.Unlock()
+	if m.typingFn != nil {
+		return m.typingFn(channelID)
 	}
 	return nil
 }
@@ -305,10 +317,10 @@ func TestSubscribeContextCancelWhileForwarding(t *testing.T) {
 
 func TestPostSend(t *testing.T) {
 	tests := []struct {
-		name      string
-		op        plugin.OutboundOp
-		wantCh    string
-		wantBody  string
+		name     string
+		op       plugin.OutboundOp
+		wantCh   string
+		wantBody string
 	}{
 		{
 			name:     "DefaultChannel",
@@ -387,11 +399,57 @@ func TestPostEdit(t *testing.T) {
 	}
 }
 
-func TestPostErrors(t *testing.T) {
+func TestPostTyping(t *testing.T) {
 	tests := []struct {
 		name   string
-		setup  func() (*Transport, context.Context)
 		op     plugin.OutboundOp
+		wantCh string
+	}{
+		{
+			name:   "DefaultChannel",
+			op:     plugin.OutboundOp{Kind: plugin.OutboundTyping},
+			wantCh: "ch-1",
+		},
+		{
+			name:   "CustomChannel",
+			op:     plugin.OutboundOp{Kind: plugin.OutboundTyping, ChannelID: "ch-2"},
+			wantCh: "ch-2",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mc := &mockClient{}
+			tr, _ := New(mc, "ch-1")
+			if err := tr.Post(context.Background(), tt.op); err != nil {
+				t.Fatalf("post error: %v", err)
+			}
+			mc.mu.Lock()
+			defer mc.mu.Unlock()
+			if len(mc.typingCalls) != 1 {
+				t.Fatalf("expected 1 typing call, got %d", len(mc.typingCalls))
+			}
+			if mc.typingCalls[0] != tt.wantCh {
+				t.Fatalf("got channel %q, want %q", mc.typingCalls[0], tt.wantCh)
+			}
+		})
+	}
+}
+
+func TestPostTypingError(t *testing.T) {
+	mc := &mockClient{typingFn: func(string) error {
+		return fmt.Errorf("typing fail")
+	}}
+	tr, _ := New(mc, "ch-1")
+	if err := tr.Post(context.Background(), plugin.OutboundOp{Kind: plugin.OutboundTyping}); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestPostErrors(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func() (*Transport, context.Context)
+		op    plugin.OutboundOp
 	}{
 		{
 			name: "SendError",
