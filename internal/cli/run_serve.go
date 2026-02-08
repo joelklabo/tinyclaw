@@ -7,9 +7,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/klabo/tinyclaw/internal/memory"
 	"github.com/klabo/tinyclaw/internal/orchestrator"
 	"github.com/klabo/tinyclaw/internal/plugin"
+	"github.com/klabo/tinyclaw/internal/ratelimit"
 	"github.com/klabo/tinyclaw/plugins/claudecode"
 	"github.com/klabo/tinyclaw/plugins/discord"
 	"github.com/klabo/tinyclaw/plugins/openclaw"
@@ -19,12 +22,12 @@ import (
 // Overridable for testing.
 var connectFunc = defaultConnect
 
-func defaultConnect(token, channelID string) (discord.Client, plugin.Transport, error) {
+func defaultConnect(token string, channelIDs []string) (discord.Client, plugin.Transport, error) {
 	client, err := discord.NewLiveClient(token)
 	if err != nil {
 		return nil, nil, fmt.Errorf("discord connect: %w", err)
 	}
-	transport, err := discord.New(client, channelID)
+	transport, err := discord.New(client, channelIDs...)
 	if err != nil {
 		_ = client.Close()
 		return nil, nil, fmt.Errorf("discord transport: %w", err)
@@ -44,7 +47,7 @@ func RunBot(cmd Command) error {
 		Level: ParseLogLevel(cfg.LogLevel),
 	}))
 
-	_, transport, err := connectFunc(cmd.Token, cmd.Channels[0])
+	_, transport, err := connectFunc(cmd.Token, cmd.Channels)
 	if err != nil {
 		return err
 	}
@@ -84,15 +87,21 @@ func buildServeParams(cmd Command, cfg Config, transport plugin.Transport, logge
 		})
 	}
 
+	mem := memory.New(time.Hour, 20)
+	limiter := ratelimit.New(5, 60*time.Second)
+
 	return ServeParams{
 		Transport: transport,
 		NewHarness: func() (plugin.Harness, error) {
 			runner := claudecode.NewExecRunner(cmd.WorkDir)
+			runner.SystemPrompt = cfg.SystemPrompt
 			return claudecode.New(runner)
 		},
-		Context:   provider,
-		WorkDir:   cmd.WorkDir,
-		BundleDir: cfg.BundleDir,
+		Context:     provider,
+		Memory:      mem,
+		RateLimiter: limiter,
+		WorkDir:     cmd.WorkDir,
+		BundleDir:   cfg.BundleDir,
 		Routing: orchestrator.Config{
 			Default: "default",
 			Rules:   rules,

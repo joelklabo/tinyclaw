@@ -43,12 +43,13 @@ type Params struct {
 
 // Orchestrator coordinates a single run: route -> harness -> transport.
 type Orchestrator struct {
-	transport plugin.Transport
-	harness   plugin.Harness
-	routing   Config
-	bundle    BundleWriter
-	logger    *slog.Logger
-	nowFn     func() time.Time
+	transport   plugin.Transport
+	harness     plugin.Harness
+	routing     Config
+	bundle      BundleWriter
+	logger      *slog.Logger
+	nowFn       func() time.Time
+	deltaBuffer strings.Builder
 }
 
 // New creates an Orchestrator with the given dependencies.
@@ -158,21 +159,23 @@ func (o *Orchestrator) fail(err error) error {
 func (o *Orchestrator) mapToTransport(ctx context.Context, re plugin.RunEvent) error {
 	switch re.Kind {
 	case plugin.RunEventDelta:
-		return o.transport.Post(ctx, plugin.OutboundOp{
-			Kind:    plugin.OutboundEdit,
-			Content: re.Content,
-		})
+		o.deltaBuffer.WriteString(re.Content)
+		return nil
 	case plugin.RunEventFinal:
+		content := re.Content
+		if content == "" && o.deltaBuffer.Len() > 0 {
+			content = o.deltaBuffer.String()
+		}
 		return o.transport.Post(ctx, plugin.OutboundOp{
 			Kind:    plugin.OutboundPost,
-			Content: re.Content,
+			Content: content,
 		})
 	case plugin.RunEventFault:
 		return o.transport.Post(ctx, plugin.OutboundOp{
 			Kind:    plugin.OutboundPost,
 			Content: re.Message,
 		})
-	case plugin.RunEventStatus:
+	case plugin.RunEventStatus, plugin.RunEventTool:
 		return o.transport.Post(ctx, plugin.OutboundOp{
 			Kind: plugin.OutboundTyping,
 		})

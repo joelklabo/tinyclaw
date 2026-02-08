@@ -108,9 +108,30 @@ func TestNewNilClient(t *testing.T) {
 }
 
 func TestNewEmptyChannel(t *testing.T) {
-	_, err := New(&mockClient{}, "")
+	_, err := New(&mockClient{})
 	if err == nil {
-		t.Fatal("expected error for empty channel")
+		t.Fatal("expected error for no channels")
+	}
+}
+
+func TestNewMultipleChannels(t *testing.T) {
+	mc := &mockClient{}
+	tr, err := New(mc, "ch-1", "ch-2", "ch-3")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if tr == nil {
+		t.Fatal("expected non-nil transport")
+	}
+	if tr.defaultChannel != "ch-1" {
+		t.Fatalf("expected default channel ch-1, got %q", tr.defaultChannel)
+	}
+}
+
+func TestNewEmptyChannelInList(t *testing.T) {
+	_, err := New(&mockClient{}, "ch-1", "")
+	if err == nil {
+		t.Fatal("expected error for empty channel in list")
 	}
 }
 
@@ -149,6 +170,43 @@ func TestSubscribeReceivesMessages(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for event")
+	}
+}
+
+func TestSubscribeMultiChannel(t *testing.T) {
+	mc := &mockClient{}
+	tr, _ := New(mc, "ch-1", "ch-2")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch, err := tr.Subscribe(ctx)
+	if err != nil {
+		t.Fatalf("subscribe error: %v", err)
+	}
+
+	// Messages from both channels should be accepted.
+	mc.handler()(Message{ID: "m1", ChannelID: "ch-1", Content: "from ch-1"})
+	mc.handler()(Message{ID: "m2", ChannelID: "ch-2", Content: "from ch-2"})
+
+	for _, want := range []string{"from ch-1", "from ch-2"} {
+		select {
+		case ev := <-ch:
+			if ev.Content != want {
+				t.Fatalf("got content %q, want %q", ev.Content, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timeout waiting for event %q", want)
+		}
+	}
+
+	// Messages from other channels should be filtered out.
+	mc.handler()(Message{ID: "m3", ChannelID: "ch-other", Content: "nope"})
+	select {
+	case ev := <-ch:
+		t.Fatalf("unexpected event: %+v", ev)
+	case <-time.After(50 * time.Millisecond):
+		// good: filtered out
 	}
 }
 

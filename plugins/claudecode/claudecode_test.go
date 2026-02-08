@@ -425,6 +425,87 @@ func TestStart_UsesScenarioWhenEventContentEmpty(t *testing.T) {
 	}
 }
 
+func TestFormatContextEmpty(t *testing.T) {
+	result := formatContext(nil)
+	if result != "" {
+		t.Fatalf("expected empty string for nil items, got %q", result)
+	}
+	result = formatContext([]plugin.ContextItem{})
+	if result != "" {
+		t.Fatalf("expected empty string for empty items, got %q", result)
+	}
+}
+
+func TestFormatContext(t *testing.T) {
+	items := []plugin.ContextItem{
+		{Name: "low", Content: "low priority", Priority: 1},
+		{Name: "high", Content: "high priority", Priority: 10},
+		{Name: "mid", Content: "mid priority", Priority: 5},
+	}
+	result := formatContext(items)
+	if !strings.Contains(result, "[Context]") {
+		t.Fatal("expected [Context] header")
+	}
+	// High priority should come first.
+	highIdx := strings.Index(result, "--- high ---")
+	midIdx := strings.Index(result, "--- mid ---")
+	lowIdx := strings.Index(result, "--- low ---")
+	if highIdx == -1 || midIdx == -1 || lowIdx == -1 {
+		t.Fatalf("missing items in output: %q", result)
+	}
+	if highIdx > midIdx || midIdx > lowIdx {
+		t.Fatalf("items not sorted by priority descending: high=%d mid=%d low=%d", highIdx, midIdx, lowIdx)
+	}
+}
+
+func TestFormatContextTruncation(t *testing.T) {
+	// Create an item that's large enough to exceed maxContextChars.
+	bigContent := strings.Repeat("x", maxContextChars)
+	items := []plugin.ContextItem{
+		{Name: "big", Content: bigContent, Priority: 10},
+		{Name: "small", Content: "should be excluded", Priority: 5},
+	}
+	result := formatContext(items)
+	if strings.Contains(result, "--- small ---") {
+		t.Fatal("small item should be excluded due to truncation")
+	}
+	if !strings.Contains(result, "[Context]") {
+		t.Fatal("expected [Context] header")
+	}
+}
+
+func TestStart_WithContext(t *testing.T) {
+	var capturedPrompt string
+	runner := &funcRunner{fn: func(_ context.Context, prompt string) (io.ReadCloser, error) {
+		capturedPrompt = prompt
+		return readerFromLines(`{"type":"result","content":"ok"}`), nil
+	}}
+	h, _ := New(runner)
+	req := plugin.RunRequest{
+		Event: plugin.InboundEvent{Content: "user question"},
+		Context: []plugin.ContextItem{
+			{Name: "readme", Content: "project info", Priority: 5},
+		},
+	}
+	ch, err := h.Start(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	collectEvents(t, ch)
+	if !strings.Contains(capturedPrompt, "[Context]") {
+		t.Errorf("expected prompt to contain [Context], got %q", capturedPrompt)
+	}
+	if !strings.Contains(capturedPrompt, "[Message]") {
+		t.Errorf("expected prompt to contain [Message], got %q", capturedPrompt)
+	}
+	if !strings.Contains(capturedPrompt, "user question") {
+		t.Errorf("expected prompt to contain user message, got %q", capturedPrompt)
+	}
+	if !strings.Contains(capturedPrompt, "project info") {
+		t.Errorf("expected prompt to contain context content, got %q", capturedPrompt)
+	}
+}
+
 func TestStart_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	br := &blockingReader{

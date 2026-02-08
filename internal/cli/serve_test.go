@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/klabo/tinyclaw/internal/memory"
 	"github.com/klabo/tinyclaw/internal/orchestrator"
 	"github.com/klabo/tinyclaw/internal/plugin"
+	"github.com/klabo/tinyclaw/internal/ratelimit"
 	"github.com/klabo/tinyclaw/plugins/openclaw"
 )
 
@@ -276,6 +279,18 @@ func TestRunServeHarnessFactoryError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	// Error message should be posted to Discord.
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	if len(tr.postOps) == 0 {
+		t.Fatal("expected error message posted to Discord")
+	}
+	if tr.postOps[0].Kind != plugin.OutboundPost {
+		t.Fatalf("expected post op, got %q", tr.postOps[0].Kind)
+	}
+	if tr.postOps[0].ChannelID != "ch-1" {
+		t.Fatalf("expected channel ch-1, got %q", tr.postOps[0].ChannelID)
+	}
 }
 
 func TestRunServeBundleCreateError(t *testing.T) {
@@ -322,6 +337,18 @@ func TestRunServeOrchestratorRunError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	// Error message should be posted to Discord.
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	if len(tr.postOps) == 0 {
+		t.Fatal("expected error message posted to Discord")
+	}
+	if tr.postOps[0].Kind != plugin.OutboundPost {
+		t.Fatalf("expected post op, got %q", tr.postOps[0].Kind)
+	}
+	if tr.postOps[0].ChannelID != "ch-1" {
+		t.Fatalf("expected channel ch-1, got %q", tr.postOps[0].ChannelID)
+	}
 }
 
 func TestRunServeNilLogger(t *testing.T) {
@@ -345,5 +372,87 @@ func TestRunServeNilLogger(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunServeRateLimited(t *testing.T) {
+	// Create a limiter that allows only 1 request per minute.
+	limiter := ratelimit.New(1, time.Minute)
+
+	tr := &stubServeTransport{
+		events: []plugin.InboundEvent{
+			{Type: plugin.InboundMessage, Content: "first", ChannelID: "ch-1", AuthorID: "user-1"},
+			{Type: plugin.InboundMessage, Content: "second", ChannelID: "ch-1", AuthorID: "user-1"},
+		},
+	}
+	h := &stubServeHarness{events: []plugin.RunEvent{
+		{Kind: plugin.RunEventFinal, Content: "response"},
+	}}
+
+	err := RunServe(context.Background(), ServeParams{
+		Transport:   tr,
+		NewHarness:  func() (plugin.Harness, error) { return h, nil },
+		RateLimiter: limiter,
+		WorkDir:     t.TempDir(),
+		BundleDir:   t.TempDir(),
+		Routing:     orchestrator.Config{Default: "default"},
+		Logger:      testLogger(),
+		IDFunc:      counter(),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should have at least one rate limit message posted.
+	tr.mu.Lock()
+	defer tr.mu.Unlock()
+	var rateLimitFound bool
+	for _, op := range tr.postOps {
+		if strings.Contains(op.Content, "too fast") {
+			rateLimitFound = true
+			break
+		}
+	}
+	if !rateLimitFound {
+		t.Fatal("expected rate limit message to be posted")
+	}
+}
+
+func TestRunServeWithMemory(t *testing.T) {
+	mem := memory.New(time.Hour, 100)
+
+	tr := &stubServeTransport{
+		events: []plugin.InboundEvent{
+			{Type: plugin.InboundMessage, Content: "hello world", ChannelID: "ch-1", AuthorID: "user-1"},
+		},
+	}
+	h := &stubServeHarness{events: []plugin.RunEvent{
+		{Kind: plugin.RunEventFinal, Content: "response"},
+	}}
+
+	err := RunServe(context.Background(), ServeParams{
+		Transport:  tr,
+		NewHarness: func() (plugin.Harness, error) { return h, nil },
+		Memory:     mem,
+		WorkDir:    t.TempDir(),
+		BundleDir:  t.TempDir(),
+		Routing:    orchestrator.Config{Default: "default"},
+		Logger:     testLogger(),
+		IDFunc:     counter(),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify user message was stored in memory.
+	entries := mem.Recent("ch-1", 10)
+	if len(entries) == 0 {
+		t.Fatal("expected at least one memory entry")
+	}
+	if entries[0].Content != "hello world" {
+		t.Fatalf("expected 'hello world', got %q", entries[0].Content)
+	}
+	if entries[0].Role != "user" {
+		t.Fatalf("expected role 'user', got %q", entries[0].Role)
 	}
 }

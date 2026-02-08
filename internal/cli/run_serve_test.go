@@ -37,7 +37,7 @@ func TestRunBotBadConfig(t *testing.T) {
 func TestRunBotConnectError(t *testing.T) {
 	old := connectFunc
 	defer func() { connectFunc = old }()
-	connectFunc = func(token, channelID string) (discord.Client, plugin.Transport, error) {
+	connectFunc = func(token string, channelIDs []string) (discord.Client, plugin.Transport, error) {
 		return nil, nil, fmt.Errorf("connect fail")
 	}
 
@@ -75,7 +75,7 @@ func (f *fakeRunBotClient) Close() error                                      { 
 func TestRunBotHappyPath(t *testing.T) {
 	old := connectFunc
 	defer func() { connectFunc = old }()
-	connectFunc = func(token, channelID string) (discord.Client, plugin.Transport, error) {
+	connectFunc = func(token string, channelIDs []string) (discord.Client, plugin.Transport, error) {
 		return &fakeRunBotClient{}, &fakeRunBotTransport{}, nil
 	}
 
@@ -96,7 +96,7 @@ func TestRunBotServeError(t *testing.T) {
 	defer func() { connectFunc = old }()
 
 	subErrTransport := &stubServeTransport{subErr: fmt.Errorf("subscribe fail")}
-	connectFunc = func(token, channelID string) (discord.Client, plugin.Transport, error) {
+	connectFunc = func(token string, channelIDs []string) (discord.Client, plugin.Transport, error) {
 		return &fakeRunBotClient{}, subErrTransport, nil
 	}
 
@@ -173,6 +173,12 @@ func TestBuildServeParams(t *testing.T) {
 	if params.NewHarness == nil {
 		t.Fatal("expected non-nil NewHarness")
 	}
+	if params.Memory == nil {
+		t.Fatal("expected non-nil Memory")
+	}
+	if params.RateLimiter == nil {
+		t.Fatal("expected non-nil RateLimiter")
+	}
 }
 
 func TestBuildServeParamsHarnessFactory(t *testing.T) {
@@ -215,9 +221,32 @@ func TestBuildServeParamsSingleChannel(t *testing.T) {
 
 func TestDefaultConnect(t *testing.T) {
 	// Test that defaultConnect returns an error for an invalid token.
-	_, _, err := defaultConnect("invalid-token", "ch-1")
+	_, _, err := defaultConnect("invalid-token", []string{"ch-1"})
 	if err == nil {
 		t.Fatal("expected error for invalid token")
+	}
+}
+
+func TestBuildServeParamsSystemPrompt(t *testing.T) {
+	cmd := Command{
+		Action:   ActionRun,
+		Channels: []string{"ch-1"},
+		WorkDir:  t.TempDir(),
+	}
+	cfg := Defaults()
+	cfg.SystemPrompt = "You are a helpful bot."
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	tr := &stubServeTransport{}
+
+	params := buildServeParams(cmd, cfg, tr, logger)
+	// The harness factory should create a runner with the system prompt.
+	// We verify it by calling the factory and checking the result is non-nil.
+	h, err := params.NewHarness()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if h == nil {
+		t.Fatal("expected non-nil harness")
 	}
 }
 

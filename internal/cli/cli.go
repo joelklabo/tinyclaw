@@ -14,6 +14,7 @@ const (
 	ActionTest    Action = "test"
 	ActionReplay  Action = "replay"
 	ActionRun     Action = "run"
+	ActionBrowse  Action = "browse"
 	ActionVersion Action = "version"
 )
 
@@ -21,7 +22,8 @@ const (
 type Command struct {
 	Action       Action
 	ScenarioFile string   // test: optional scenario file
-	BundleDir    string   // replay: required bundle directory
+	BundleDir    string   // replay/browse: bundle directory
+	BundlePath   string   // browse: specific bundle to inspect
 	ConfigFile   string   // test/run: optional config file path
 	Token        string   // run: Discord bot token (from env)
 	Channels     []string // run: Discord channel IDs
@@ -31,7 +33,7 @@ type Command struct {
 // Parse parses the given args (os.Args[1:] typically) into a Command.
 func Parse(args []string) (Command, error) {
 	if len(args) == 0 {
-		return Command{}, fmt.Errorf("usage: tinyclaw <test|replay|run|version>")
+		return Command{}, fmt.Errorf("usage: tinyclaw <test|replay|run|browse|version>")
 	}
 
 	switch args[0] {
@@ -41,6 +43,8 @@ func Parse(args []string) (Command, error) {
 		return parseReplay(args[1:])
 	case "run":
 		return parseRun(args[1:])
+	case "browse":
+		return parseBrowse(args[1:])
 	case "version":
 		return Command{Action: ActionVersion}, nil
 	default:
@@ -106,5 +110,19 @@ func parseRun(args []string) (Command, error) {
 		Channels:   []string(channels),
 		WorkDir:    *workDir,
 		ConfigFile: *config,
+	}, nil
+}
+
+func parseBrowse(args []string) (Command, error) {
+	fs := flag.NewFlagSet("browse", flag.ContinueOnError)
+	bundleDir := fs.String("bundle-dir", "", "bundle directory")
+	bundlePath := fs.String("bundle", "", "specific bundle to inspect")
+	if err := fs.Parse(args); err != nil {
+		return Command{}, err
+	}
+	return Command{
+		Action:     ActionBrowse,
+		BundleDir:  *bundleDir,
+		BundlePath: *bundlePath,
 	}, nil
 }

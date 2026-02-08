@@ -9,8 +9,9 @@ import (
 
 // Config holds the tinyclaw runtime configuration.
 type Config struct {
-	LogLevel  string `yaml:"log_level"`
-	BundleDir string `yaml:"bundle_dir"`
+	LogLevel     string `yaml:"log_level"`
+	BundleDir    string `yaml:"bundle_dir"`
+	SystemPrompt string `yaml:"system_prompt"`
 }
 
 // Defaults returns a Config with sensible defaults.

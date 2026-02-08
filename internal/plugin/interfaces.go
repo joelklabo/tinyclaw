@@ -26,10 +26,10 @@ const (
 // InboundEvent represents an event received from a transport.
 type InboundEvent struct {
 	Type      InboundEventType `json:"type"`
-	Content   string `json:"content,omitempty"`
-	ChannelID string `json:"channel_id,omitempty"`
-	AuthorID  string `json:"author_id,omitempty"`
-	MessageID string `json:"message_id,omitempty"`
+	Content   string           `json:"content,omitempty"`
+	ChannelID string           `json:"channel_id,omitempty"`
+	AuthorID  string           `json:"author_id,omitempty"`
+	MessageID string           `json:"message_id,omitempty"`
 }
 
 // OutboundOpKind is the kind of outbound transport operation.

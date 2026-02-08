@@ -48,6 +48,51 @@ func TestExecRunnerRunEcho(t *testing.T) {
 	}
 }
 
+func TestExecRunnerSystemPrompt(t *testing.T) {
+	r := &ExecRunner{
+		WorkDir:      t.TempDir(),
+		Command:      "echo",
+		Args:         []string{},
+		SystemPrompt: "You are a test bot.",
+	}
+	rc, err := r.Run(context.Background(), "hello")
+	if err != nil {
+		t.Fatalf("run error: %v", err)
+	}
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("read error: %v", err)
+	}
+	_ = rc.Close()
+	got := strings.TrimSpace(string(data))
+	want := "--system-prompt You are a test bot. -p hello"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestExecRunnerNoSystemPrompt(t *testing.T) {
+	r := &ExecRunner{
+		WorkDir: t.TempDir(),
+		Command: "echo",
+		Args:    []string{"--verbose"},
+	}
+	rc, err := r.Run(context.Background(), "hello")
+	if err != nil {
+		t.Fatalf("run error: %v", err)
+	}
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("read error: %v", err)
+	}
+	_ = rc.Close()
+	got := strings.TrimSpace(string(data))
+	want := "--verbose -p hello"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
 func TestExecRunnerRunMissingBinary(t *testing.T) {
 	r := &ExecRunner{
 		WorkDir: t.TempDir(),
@@ -92,6 +137,23 @@ func TestExecRunnerContextCancel(t *testing.T) {
 	_, _ = io.ReadAll(rc)
 	// Close should return an error since the process was killed.
 	_ = rc.Close()
+}
+
+func TestExecRunnerArgsSafety(t *testing.T) {
+	r := &ExecRunner{
+		WorkDir: t.TempDir(),
+		Command: "echo",
+		Args:    []string{"--flag"},
+	}
+	origLen := len(r.Args)
+	_, _ = r.Run(context.Background(), "first")
+	_, _ = r.Run(context.Background(), "second")
+	if len(r.Args) != origLen {
+		t.Fatalf("Args was mutated: len changed from %d to %d", origLen, len(r.Args))
+	}
+	if r.Args[0] != "--flag" {
+		t.Fatalf("Args[0] was mutated: got %q, want %q", r.Args[0], "--flag")
+	}
 }
 
 func TestExecRunnerLive(t *testing.T) {

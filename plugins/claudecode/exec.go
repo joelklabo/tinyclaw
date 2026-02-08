@@ -9,9 +9,10 @@ import (
 
 // ExecRunner implements Runner by spawning a Claude Code subprocess.
 type ExecRunner struct {
-	WorkDir string
-	Command string
-	Args    []string
+	WorkDir      string
+	Command      string
+	Args         []string
+	SystemPrompt string
 }
 
 // compile-time check
@@ -28,7 +29,12 @@ func NewExecRunner(workDir string) *ExecRunner {
 
 // Run spawns the claude process with the given prompt and returns its stdout.
 func (r *ExecRunner) Run(ctx context.Context, prompt string) (io.ReadCloser, error) {
-	args := append(r.Args, "-p", prompt)
+	args := make([]string, 0, len(r.Args)+6)
+	args = append(args, r.Args...)
+	if r.SystemPrompt != "" {
+		args = append(args, "--system-prompt", r.SystemPrompt)
+	}
+	args = append(args, "-p", prompt)
 	cmd := exec.CommandContext(ctx, r.Command, args...)
 	cmd.Dir = r.WorkDir
 

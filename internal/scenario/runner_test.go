@@ -81,7 +81,6 @@ func TestRunScenario_MultipleEventTypes(t *testing.T) {
 		},
 		ExpectedOps: []ExpectedOp{
 			{Kind: plugin.OutboundTyping},
-			{Kind: plugin.OutboundEdit},
 			{Kind: plugin.OutboundPost},
 			{Kind: plugin.OutboundPost},
 		},

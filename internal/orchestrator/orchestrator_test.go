@@ -172,16 +172,14 @@ func TestRouteNoMatchNoDefault(t *testing.T) {
 
 func TestMapToTransport(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    plugin.RunEvent
-		wantOps  []plugin.OutboundOp
+		name    string
+		input   plugin.RunEvent
+		wantOps []plugin.OutboundOp
 	}{
 		{
-			name:  "delta maps to edit",
-			input: plugin.RunEvent{Kind: plugin.RunEventDelta, Content: "chunk"},
-			wantOps: []plugin.OutboundOp{
-				{Kind: plugin.OutboundEdit, Content: "chunk"},
-			},
+			name:    "delta is buffered (no ops)",
+			input:   plugin.RunEvent{Kind: plugin.RunEventDelta, Content: "chunk"},
+			wantOps: nil,
 		},
 		{
 			name:  "final maps to post",
@@ -200,6 +198,13 @@ func TestMapToTransport(t *testing.T) {
 		{
 			name:  "status maps to typing",
 			input: plugin.RunEvent{Kind: plugin.RunEventStatus},
+			wantOps: []plugin.OutboundOp{
+				{Kind: plugin.OutboundTyping},
+			},
+		},
+		{
+			name:  "tool maps to typing",
+			input: plugin.RunEvent{Kind: plugin.RunEventTool, Tool: "bash"},
 			wantOps: []plugin.OutboundOp{
 				{Kind: plugin.OutboundTyping},
 			},
@@ -254,14 +259,14 @@ func TestRunHappyPath(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(tr.ops) != 2 {
-		t.Fatalf("expected 2 transport ops, got %d", len(tr.ops))
+	if len(tr.ops) != 1 {
+		t.Fatalf("expected 1 transport op, got %d", len(tr.ops))
 	}
-	if tr.ops[0].Kind != plugin.OutboundEdit {
-		t.Fatalf("expected edit, got %q", tr.ops[0].Kind)
+	if tr.ops[0].Kind != plugin.OutboundPost {
+		t.Fatalf("expected post, got %q", tr.ops[0].Kind)
 	}
-	if tr.ops[1].Kind != plugin.OutboundPost {
-		t.Fatalf("expected post, got %q", tr.ops[1].Kind)
+	if tr.ops[0].Content != "done" {
+		t.Fatalf("expected content %q, got %q", "done", tr.ops[0].Content)
 	}
 }
 
@@ -503,5 +508,56 @@ func TestRouteDualChannelAndPrefix(t *testing.T) {
 	}
 	if got != "dual-profile" {
 		t.Fatalf("got %q, want %q", got, "dual-profile")
+	}
+}
+
+// --- delta buffering tests ---
+
+func TestDeltaBuffering(t *testing.T) {
+	tr := &stubTransport{}
+	h := &stubHarness{events: []plugin.RunEvent{
+		{Kind: plugin.RunEventDelta, Content: "Hello "},
+		{Kind: plugin.RunEventDelta, Content: "world"},
+		{Kind: plugin.RunEventFinal, Content: "Hello world"},
+	}}
+
+	o := New(Params{Transport: tr, Harness: h, Routing: Config{Default: "agent"}, Bundle: &stubBundle{}})
+
+	err := o.Run(context.Background(), plugin.InboundEvent{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(tr.ops) != 1 {
+		t.Fatalf("expected 1 transport op, got %d: %+v", len(tr.ops), tr.ops)
+	}
+	if tr.ops[0].Kind != plugin.OutboundPost {
+		t.Fatalf("expected post, got %q", tr.ops[0].Kind)
+	}
+	if tr.ops[0].Content != "Hello world" {
+		t.Fatalf("expected content %q, got %q", "Hello world", tr.ops[0].Content)
+	}
+}
+
+func TestDeltaBufferUsedWhenFinalEmpty(t *testing.T) {
+	tr := &stubTransport{}
+	h := &stubHarness{events: []plugin.RunEvent{
+		{Kind: plugin.RunEventDelta, Content: "buffered "},
+		{Kind: plugin.RunEventDelta, Content: "content"},
+		{Kind: plugin.RunEventFinal, Content: ""},
+	}}
+
+	o := New(Params{Transport: tr, Harness: h, Routing: Config{Default: "agent"}, Bundle: &stubBundle{}})
+
+	err := o.Run(context.Background(), plugin.InboundEvent{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(tr.ops) != 1 {
+		t.Fatalf("expected 1 transport op, got %d: %+v", len(tr.ops), tr.ops)
+	}
+	if tr.ops[0].Content != "buffered content" {
+		t.Fatalf("expected content %q, got %q", "buffered content", tr.ops[0].Content)
 	}
 }

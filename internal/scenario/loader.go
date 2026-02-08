@@ -11,19 +11,19 @@ import (
 
 // Scenario defines a test scenario for an agent run.
 type Scenario struct {
-	Name          string           `yaml:"name"`
-	Description   string           `yaml:"description"`
-	InboundEvents []InboundEvent   `yaml:"inbound_events"`
+	Name          string            `yaml:"name"`
+	Description   string            `yaml:"description"`
+	InboundEvents []InboundEvent    `yaml:"inbound_events"`
 	HarnessEvents []plugin.RunEvent `yaml:"harness_events"`
-	ExpectedOps   []ExpectedOp     `yaml:"expected_transport_ops"`
+	ExpectedOps   []ExpectedOp      `yaml:"expected_transport_ops"`
 }
 
 // InboundEvent is a scripted inbound event in a scenario.
 type InboundEvent struct {
 	Type      plugin.InboundEventType `yaml:"type"`
-	Content   string `yaml:"content"`
-	ChannelID string `yaml:"channel_id"`
-	AuthorID  string `yaml:"author_id"`
+	Content   string                  `yaml:"content"`
+	ChannelID string                  `yaml:"channel_id"`
+	AuthorID  string                  `yaml:"author_id"`
 }
 
 // ExpectedOp is an expected outbound transport operation.

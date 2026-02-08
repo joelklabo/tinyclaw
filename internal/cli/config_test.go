@@ -105,6 +105,23 @@ func TestFromEnvNoOverrideWhenUnset(t *testing.T) {
 	}
 }
 
+func TestLoadConfigWithSystemPrompt(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	data := "log_level: info\nbundle_dir: bundles\nsystem_prompt: \"You are a helpful bot.\"\n"
+	if err := os.WriteFile(path, []byte(data), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SystemPrompt != "You are a helpful bot." {
+		t.Fatalf("expected SystemPrompt %q, got %q", "You are a helpful bot.", cfg.SystemPrompt)
+	}
+}
+
 func TestParseLogLevel(t *testing.T) {
 	tests := []struct {
 		input string

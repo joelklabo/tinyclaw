@@ -28,23 +28,35 @@ type Message struct {
 
 // Transport implements plugin.Transport using a Discord Client.
 type Transport struct {
-	client    Client
-	channelID string
+	client         Client
+	channels       map[string]bool
+	defaultChannel string
 
 	mu         sync.Mutex
 	closed     bool
 	subscribed bool
 }
 
-// New creates a new Discord Transport for the given channel.
-func New(client Client, channelID string) (*Transport, error) {
+// New creates a new Discord Transport for the given channels.
+func New(client Client, channelIDs ...string) (*Transport, error) {
 	if client == nil {
 		return nil, fmt.Errorf("discord: client must not be nil")
 	}
-	if channelID == "" {
-		return nil, fmt.Errorf("discord: channelID must not be empty")
+	if len(channelIDs) == 0 {
+		return nil, fmt.Errorf("discord: at least one channelID required")
 	}
-	return &Transport{client: client, channelID: channelID}, nil
+	channels := make(map[string]bool, len(channelIDs))
+	for _, id := range channelIDs {
+		if id == "" {
+			return nil, fmt.Errorf("discord: channelID must not be empty")
+		}
+		channels[id] = true
+	}
+	return &Transport{
+		client:         client,
+		channels:       channels,
+		defaultChannel: channelIDs[0],
+	}, nil
 }
 
 // Subscribe returns a channel of inbound events from Discord messages.
@@ -65,7 +77,7 @@ func (t *Transport) Subscribe(ctx context.Context) (<-chan plugin.InboundEvent, 
 	internal := make(chan plugin.InboundEvent, 64)
 
 	err := t.client.SubscribeMessages(func(msg Message) {
-		if msg.ChannelID != t.channelID {
+		if !t.channels[msg.ChannelID] {
 			return
 		}
 		ev := plugin.InboundEvent{
@@ -120,7 +132,7 @@ func (t *Transport) Post(ctx context.Context, op plugin.OutboundOp) error {
 		content := op.Content
 		channelID := op.ChannelID
 		if channelID == "" {
-			channelID = t.channelID
+			channelID = t.defaultChannel
 		}
 		chunks := chunk(content, 2000)
 		if len(chunks) == 0 {
@@ -139,7 +151,7 @@ func (t *Transport) Post(ctx context.Context, op plugin.OutboundOp) error {
 		messageID := op.MessageID
 		channelID := op.ChannelID
 		if channelID == "" {
-			channelID = t.channelID
+			channelID = t.defaultChannel
 		}
 		if messageID == "" {
 			return fmt.Errorf("discord: edit requires message_id")
@@ -149,7 +161,7 @@ func (t *Transport) Post(ctx context.Context, op plugin.OutboundOp) error {
 	case plugin.OutboundTyping:
 		channelID := op.ChannelID
 		if channelID == "" {
-			channelID = t.channelID
+			channelID = t.defaultChannel
 		}
 		return t.client.ChannelTyping(channelID)
 

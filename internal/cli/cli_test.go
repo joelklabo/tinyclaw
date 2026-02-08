@@ -185,3 +185,36 @@ func TestParseRunBadFlag(t *testing.T) {
 		t.Fatal("expected error for bad flag")
 	}
 }
+
+func TestParseBrowse(t *testing.T) {
+	cmd, err := Parse([]string{"browse"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd.Action != ActionBrowse {
+		t.Fatalf("expected action %q, got %q", ActionBrowse, cmd.Action)
+	}
+}
+
+func TestParseBrowseWithFlags(t *testing.T) {
+	cmd, err := Parse([]string{"browse", "--bundle-dir", "/tmp/bundles", "--bundle", "/tmp/bundles/bundle-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd.Action != ActionBrowse {
+		t.Fatalf("expected action %q, got %q", ActionBrowse, cmd.Action)
+	}
+	if cmd.BundleDir != "/tmp/bundles" {
+		t.Fatalf("expected bundle dir %q, got %q", "/tmp/bundles", cmd.BundleDir)
+	}
+	if cmd.BundlePath != "/tmp/bundles/bundle-1" {
+		t.Fatalf("expected bundle path %q, got %q", "/tmp/bundles/bundle-1", cmd.BundlePath)
+	}
+}
+
+func TestParseBrowseBadFlag(t *testing.T) {
+	_, err := Parse([]string{"browse", "--unknown-flag"})
+	if err == nil {
+		t.Fatal("expected error for bad flag")
+	}
+}

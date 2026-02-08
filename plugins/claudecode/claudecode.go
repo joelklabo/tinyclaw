@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/klabo/tinyclaw/internal/plugin"
@@ -42,11 +43,39 @@ type streamEvent struct {
 	Message json.RawMessage `json:"message,omitempty"`
 }
 
+const maxContextChars = 50000
+
+func formatContext(items []plugin.ContextItem) string {
+	if len(items) == 0 {
+		return ""
+	}
+	sorted := make([]plugin.ContextItem, len(items))
+	copy(sorted, items)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Priority > sorted[j].Priority
+	})
+	var b strings.Builder
+	b.WriteString("[Context]\n")
+	total := 0
+	for _, item := range sorted {
+		entry := fmt.Sprintf("--- %s ---\n%s\n\n", item.Name, item.Content)
+		if total+len(entry) > maxContextChars {
+			break
+		}
+		b.WriteString(entry)
+		total += len(entry)
+	}
+	return b.String()
+}
+
 // Start runs Claude Code and emits parsed RunEvents on the returned channel.
 func (h *Harness) Start(ctx context.Context, req plugin.RunRequest) (<-chan plugin.RunEvent, error) {
 	prompt := req.Scenario
 	if req.Event.Content != "" {
 		prompt = req.Event.Content
+	}
+	if ctxStr := formatContext(req.Context); ctxStr != "" {
+		prompt = ctxStr + "[Message]\n" + prompt
 	}
 
 	reader, err := h.runner.Run(ctx, prompt)
