@@ -36,9 +36,10 @@ func New(runner Runner) (*Harness, error) {
 type streamEvent struct {
 	Type    string          `json:"type"`
 	Content json.RawMessage `json:"content,omitempty"`
+	Result  string          `json:"result,omitempty"`
 	Error   string          `json:"error,omitempty"`
 	Tool    string          `json:"tool,omitempty"`
-	Message string          `json:"message,omitempty"`
+	Message json.RawMessage `json:"message,omitempty"`
 }
 
 // Start runs Claude Code and emits parsed RunEvents on the returned channel.
@@ -124,7 +125,7 @@ func convertEvent(se streamEvent) plugin.RunEvent {
 		return plugin.RunEvent{
 			Kind:    plugin.RunEventTool,
 			Tool:    se.Tool,
-			Message: se.Message,
+			Message: jsonString(se.Message),
 		}
 
 	case "error":
@@ -142,16 +143,19 @@ func convertEvent(se streamEvent) plugin.RunEvent {
 		}
 
 	case "result":
+		content := se.Result
+		if content == "" {
+			content = jsonString(se.Content)
+		}
 		return plugin.RunEvent{
 			Kind:    plugin.RunEventFinal,
-			Content: jsonString(se.Content),
+			Content: content,
 		}
 
 	default:
 		return plugin.RunEvent{
-			Kind:    plugin.RunEventStatus,
-			Phase:   se.Type,
-			Message: string(se.Content),
+			Kind:  plugin.RunEventStatus,
+			Phase: se.Type,
 		}
 	}
 }

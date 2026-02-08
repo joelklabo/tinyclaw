@@ -22,7 +22,7 @@ func NewExecRunner(workDir string) *ExecRunner {
 	return &ExecRunner{
 		WorkDir: workDir,
 		Command: "claude",
-		Args:    []string{"--output-format", "stream-json", "--print"},
+		Args:    []string{"--output-format", "stream-json", "--verbose", "--print"},
 	}
 }
 

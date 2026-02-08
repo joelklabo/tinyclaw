@@ -20,8 +20,8 @@ func TestNewExecRunner(t *testing.T) {
 	if r.Command != "claude" {
 		t.Fatalf("got command %q, want %q", r.Command, "claude")
 	}
-	if len(r.Args) != 3 {
-		t.Fatalf("got %d args, want 3", len(r.Args))
+	if len(r.Args) != 4 {
+		t.Fatalf("got %d args, want 4", len(r.Args))
 	}
 }
 

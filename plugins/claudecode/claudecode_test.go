@@ -167,12 +167,11 @@ func TestStart_EventTypes(t *testing.T) {
 			message: "something broke",
 		},
 		{
-			name:    "UnknownType",
-			line:    `{"type":"mystery","content":"data"}`,
-			count:   1,
-			kind:    plugin.RunEventStatus,
-			phase:   "mystery",
-			message: `"data"`,
+			name:  "UnknownType",
+			line:  `{"type":"mystery","content":"data"}`,
+			count: 1,
+			kind:  plugin.RunEventStatus,
+			phase: "mystery",
 		},
 	}
 	for _, tt := range tests {
