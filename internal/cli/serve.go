@@ -63,7 +63,7 @@ func handleEvent(ctx context.Context, ev plugin.InboundEvent, p ServeParams, log
 	// Rate limiting
 	if p.RateLimiter != nil && !p.RateLimiter.Allow(ev.AuthorID) {
 		_ = p.Transport.Post(ctx, plugin.OutboundOp{
-			Kind:      plugin.OutboundPost,
+			Kind:      plugin.OutboundError,
 			Content:   "You're sending messages too fast. Please wait a moment.",
 			ChannelID: ev.ChannelID,
 		})
@@ -112,7 +112,7 @@ func handleEvent(ctx context.Context, ev plugin.InboundEvent, p ServeParams, log
 		_ = bw.WriteFail(err.Error())
 		_ = bw.Close("fail")
 		_ = p.Transport.Post(ctx, plugin.OutboundOp{
-			Kind:      plugin.OutboundPost,
+			Kind:      plugin.OutboundError,
 			Content:   "Sorry, something went wrong processing your message.",
 			ChannelID: ev.ChannelID,
 		})
@@ -131,7 +131,7 @@ func handleEvent(ctx context.Context, ev plugin.InboundEvent, p ServeParams, log
 	if err := o.Run(ctx, ev, items); err != nil {
 		logger.Error("run", "run_id", id, "err", err.Error())
 		_ = p.Transport.Post(ctx, plugin.OutboundOp{
-			Kind:      plugin.OutboundPost,
+			Kind:      plugin.OutboundError,
 			Content:   "Sorry, something went wrong processing your message.",
 			ChannelID: ev.ChannelID,
 		})

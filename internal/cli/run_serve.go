@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,25 +15,26 @@ import (
 	"github.com/klabo/tinyclaw/internal/plugin"
 	"github.com/klabo/tinyclaw/internal/ratelimit"
 	"github.com/klabo/tinyclaw/plugins/claudecode"
-	"github.com/klabo/tinyclaw/plugins/discord"
+	"github.com/klabo/tinyclaw/plugins/nostr"
 	"github.com/klabo/tinyclaw/plugins/openclaw"
 )
 
-// connectFunc creates a Discord client and transport.
+// connectFunc creates a Nostr transport.
 // Overridable for testing.
 var connectFunc = defaultConnect
 
-func defaultConnect(token string, channelIDs []string) (discord.Client, plugin.Transport, error) {
-	client, err := discord.NewLiveClient(token)
+func defaultConnect(privateKey, sessionKey string, relayURLs []string) (plugin.Transport, error) {
+	ctx := context.Background()
+	client, err := nostr.NewLiveClient(ctx, relayURLs)
 	if err != nil {
-		return nil, nil, fmt.Errorf("discord connect: %w", err)
+		return nil, fmt.Errorf("nostr connect: %w", err)
 	}
-	transport, err := discord.New(client, channelIDs...)
+	transport, err := nostr.New(client, privateKey, sessionKey)
 	if err != nil {
 		_ = client.Close()
-		return nil, nil, fmt.Errorf("discord transport: %w", err)
+		return nil, fmt.Errorf("nostr transport: %w", err)
 	}
-	return client, transport, nil
+	return transport, nil
 }
 
 // RunBot wires real dependencies and runs the serve loop.
@@ -47,7 +49,7 @@ func RunBot(cmd Command) error {
 		Level: ParseLogLevel(cfg.LogLevel),
 	}))
 
-	_, transport, err := connectFunc(cmd.Token, cmd.Channels)
+	transport, err := connectFunc(cmd.PrivateKey, cmd.SessionKey, cmd.Relays)
 	if err != nil {
 		return err
 	}
@@ -58,7 +60,7 @@ func RunBot(cmd Command) error {
 	params := buildServeParams(cmd, cfg, transport, logger)
 
 	logger.Info("tinyclaw bot starting",
-		"channels", cmd.Channels,
+		"relays", cmd.Relays,
 		"workdir", cmd.WorkDir,
 		"bundle_dir", cfg.BundleDir,
 	)
@@ -79,14 +81,6 @@ func RunBot(cmd Command) error {
 func buildServeParams(cmd Command, cfg Config, transport plugin.Transport, logger *slog.Logger) ServeParams {
 	provider := openclaw.New(openclaw.Options{})
 
-	var rules []orchestrator.Rule
-	for _, ch := range cmd.Channels {
-		rules = append(rules, orchestrator.Rule{
-			Channel: ch,
-			Profile: "default",
-		})
-	}
-
 	mem := memory.New(time.Hour, 20)
 	limiter := ratelimit.New(5, 60*time.Second)
 
@@ -104,7 +98,6 @@ func buildServeParams(cmd Command, cfg Config, transport plugin.Transport, logge
 		BundleDir:   cfg.BundleDir,
 		Routing: orchestrator.Config{
 			Default: "default",
-			Rules:   rules,
 		},
 		Logger: logger,
 		IDFunc: newRunIDFunc(),
@@ -117,4 +110,16 @@ func newRunIDFunc() func() string {
 		n++
 		return fmt.Sprintf("live-%d", n)
 	}
+}
+
+// parseRelayList splits a comma-separated list of relay URLs.
+func parseRelayList(s string) []string {
+	var relays []string
+	for _, r := range strings.Split(s, ",") {
+		r = strings.TrimSpace(r)
+		if r != "" {
+			relays = append(relays, r)
+		}
+	}
+	return relays
 }

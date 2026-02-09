@@ -48,8 +48,8 @@ func TestScriptedTransport_Subscribe(t *testing.T) {
 func TestScriptedTransport_Post(t *testing.T) {
 	tr := newScriptedTransport(nil)
 	ctx := context.Background()
-	op1 := plugin.OutboundOp{Kind: plugin.OutboundPost, Content: "msg1"}
-	op2 := plugin.OutboundOp{Kind: plugin.OutboundEdit, Content: "msg2"}
+	op1 := plugin.OutboundOp{Kind: plugin.OutboundResponse, Content: "msg1"}
+	op2 := plugin.OutboundOp{Kind: plugin.OutboundDelta, Content: "msg2"}
 	if err := tr.Post(ctx, op1); err != nil {
 		t.Fatalf("Post: %v", err)
 	}
@@ -60,22 +60,22 @@ func TestScriptedTransport_Post(t *testing.T) {
 	if len(ops) != 2 {
 		t.Fatalf("Ops len = %d, want 2", len(ops))
 	}
-	if ops[0].Kind != plugin.OutboundPost {
-		t.Errorf("ops[0].Kind = %q, want %q", ops[0].Kind, plugin.OutboundPost)
+	if ops[0].Kind != plugin.OutboundResponse {
+		t.Errorf("ops[0].Kind = %q, want %q", ops[0].Kind, plugin.OutboundResponse)
 	}
-	if ops[1].Kind != plugin.OutboundEdit {
-		t.Errorf("ops[1].Kind = %q, want %q", ops[1].Kind, plugin.OutboundEdit)
+	if ops[1].Kind != plugin.OutboundDelta {
+		t.Errorf("ops[1].Kind = %q, want %q", ops[1].Kind, plugin.OutboundDelta)
 	}
 }
 
 func TestScriptedTransport_OpsCopied(t *testing.T) {
 	tr := newScriptedTransport(nil)
-	_ = tr.Post(context.Background(), plugin.OutboundOp{Kind: plugin.OutboundPost})
+	_ = tr.Post(context.Background(), plugin.OutboundOp{Kind: plugin.OutboundResponse})
 	ops1 := tr.Ops()
 	ops1[0].Kind = "mutated"
 	ops2 := tr.Ops()
-	if ops2[0].Kind != plugin.OutboundPost {
-		t.Errorf("Ops returned mutable slice; got %q after mutation, want %q", ops2[0].Kind, plugin.OutboundPost)
+	if ops2[0].Kind != plugin.OutboundResponse {
+		t.Errorf("Ops returned mutable slice; got %q after mutation, want %q", ops2[0].Kind, plugin.OutboundResponse)
 	}
 }
 
@@ -99,7 +99,7 @@ func TestScriptedTransport_DoubleClose(t *testing.T) {
 func TestScriptedTransport_PostAfterClose(t *testing.T) {
 	tr := newScriptedTransport(nil)
 	_ = tr.Close()
-	if err := tr.Post(context.Background(), plugin.OutboundOp{Kind: plugin.OutboundPost}); err == nil {
+	if err := tr.Post(context.Background(), plugin.OutboundOp{Kind: plugin.OutboundResponse}); err == nil {
 		t.Fatal("expected error posting after close")
 	}
 }

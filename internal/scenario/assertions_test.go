@@ -8,12 +8,12 @@ import (
 
 func TestAssertOps_Match(t *testing.T) {
 	actual := []plugin.OutboundOp{
-		{Kind: plugin.OutboundPost, Content: "hi"},
-		{Kind: plugin.OutboundEdit, Content: "updated"},
+		{Kind: plugin.OutboundResponse, Content: "hi"},
+		{Kind: plugin.OutboundDelta, Content: "updated"},
 	}
 	expected := []ExpectedOp{
-		{Kind: plugin.OutboundPost},
-		{Kind: plugin.OutboundEdit},
+		{Kind: plugin.OutboundResponse},
+		{Kind: plugin.OutboundDelta},
 	}
 	if err := AssertOps(actual, expected); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -22,11 +22,11 @@ func TestAssertOps_Match(t *testing.T) {
 
 func TestAssertOps_CountMismatch(t *testing.T) {
 	actual := []plugin.OutboundOp{
-		{Kind: plugin.OutboundPost},
+		{Kind: plugin.OutboundResponse},
 	}
 	expected := []ExpectedOp{
-		{Kind: plugin.OutboundPost},
-		{Kind: plugin.OutboundEdit},
+		{Kind: plugin.OutboundResponse},
+		{Kind: plugin.OutboundDelta},
 	}
 	err := AssertOps(actual, expected)
 	if err == nil {
@@ -36,12 +36,12 @@ func TestAssertOps_CountMismatch(t *testing.T) {
 
 func TestAssertOps_KindMismatch(t *testing.T) {
 	actual := []plugin.OutboundOp{
-		{Kind: plugin.OutboundEdit},
-		{Kind: plugin.OutboundPost},
+		{Kind: plugin.OutboundDelta},
+		{Kind: plugin.OutboundResponse},
 	}
 	expected := []ExpectedOp{
-		{Kind: plugin.OutboundPost},
-		{Kind: plugin.OutboundEdit},
+		{Kind: plugin.OutboundResponse},
+		{Kind: plugin.OutboundDelta},
 	}
 	err := AssertOps(actual, expected)
 	if err == nil {
@@ -57,12 +57,12 @@ func TestAssertOps_Empty(t *testing.T) {
 
 func TestAssertOps_ContentMatch(t *testing.T) {
 	actual := []plugin.OutboundOp{
-		{Kind: plugin.OutboundPost, Content: "hello"},
-		{Kind: plugin.OutboundEdit, Content: "updated"},
+		{Kind: plugin.OutboundResponse, Content: "hello"},
+		{Kind: plugin.OutboundDelta, Content: "updated"},
 	}
 	expected := []ExpectedOp{
-		{Kind: plugin.OutboundPost, Content: "hello"},
-		{Kind: plugin.OutboundEdit, Content: "updated"},
+		{Kind: plugin.OutboundResponse, Content: "hello"},
+		{Kind: plugin.OutboundDelta, Content: "updated"},
 	}
 	if err := AssertOps(actual, expected); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -71,10 +71,10 @@ func TestAssertOps_ContentMatch(t *testing.T) {
 
 func TestAssertOps_ContentMismatch(t *testing.T) {
 	actual := []plugin.OutboundOp{
-		{Kind: plugin.OutboundPost, Content: "wrong"},
+		{Kind: plugin.OutboundResponse, Content: "wrong"},
 	}
 	expected := []ExpectedOp{
-		{Kind: plugin.OutboundPost, Content: "expected"},
+		{Kind: plugin.OutboundResponse, Content: "expected"},
 	}
 	err := AssertOps(actual, expected)
 	if err == nil {
@@ -84,10 +84,10 @@ func TestAssertOps_ContentMismatch(t *testing.T) {
 
 func TestAssertOps_ContentNotCheckedWhenEmpty(t *testing.T) {
 	actual := []plugin.OutboundOp{
-		{Kind: plugin.OutboundPost, Content: "anything"},
+		{Kind: plugin.OutboundResponse, Content: "anything"},
 	}
 	expected := []ExpectedOp{
-		{Kind: plugin.OutboundPost},
+		{Kind: plugin.OutboundResponse},
 	}
 	if err := AssertOps(actual, expected); err != nil {
 		t.Fatalf("unexpected error: %v", err)

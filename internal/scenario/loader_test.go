@@ -25,7 +25,7 @@ harness_events:
     message: done
     fault: ""
 expected_transport_ops:
-  - kind: post
+  - kind: response
 `
 	sc, err := Parse([]byte(yaml))
 	if err != nil {
@@ -79,8 +79,8 @@ expected_transport_ops:
 	if len(sc.ExpectedOps) != 1 {
 		t.Fatalf("ExpectedOps len = %d, want 1", len(sc.ExpectedOps))
 	}
-	if sc.ExpectedOps[0].Kind != plugin.OutboundPost {
-		t.Errorf("ExpectedOp.Kind = %q, want %q", sc.ExpectedOps[0].Kind, plugin.OutboundPost)
+	if sc.ExpectedOps[0].Kind != plugin.OutboundResponse {
+		t.Errorf("ExpectedOp.Kind = %q, want %q", sc.ExpectedOps[0].Kind, plugin.OutboundResponse)
 	}
 }
 

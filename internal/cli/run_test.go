@@ -19,8 +19,8 @@ harness_events:
   - kind: final
     content: "Hello!"
 expected_transport_ops:
-  - kind: typing
-  - kind: post
+  - kind: status
+  - kind: response
 `
 	dir := t.TempDir()
 	scenarioFile := filepath.Join(dir, "test.yaml")
@@ -125,7 +125,7 @@ harness_events:
   - kind: final
     content: "Hello!"
 expected_transport_ops:
-  - kind: post
+  - kind: response
 `
 	dir := t.TempDir()
 	scenarioFile := filepath.Join(dir, "test.yaml")
@@ -153,7 +153,7 @@ expected_transport_ops:
 
 func TestRunTestAssertionError(t *testing.T) {
 	// Create a scenario where expected ops don't match actual ops.
-	// The harness produces status->typing and final->post, but we only expect "post".
+	// The harness produces status+response, but we only expect "response" (missing status).
 	scenarioYAML := `
 name: test-mismatch
 description: Mismatch test
@@ -166,7 +166,7 @@ harness_events:
   - kind: final
     content: "Hello!"
 expected_transport_ops:
-  - kind: post
+  - kind: response
 `
 	dir := t.TempDir()
 	scenarioFile := filepath.Join(dir, "test.yaml")

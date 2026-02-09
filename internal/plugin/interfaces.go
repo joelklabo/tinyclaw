@@ -36,9 +36,11 @@ type InboundEvent struct {
 type OutboundOpKind string
 
 const (
-	OutboundPost   OutboundOpKind = "post"
-	OutboundEdit   OutboundOpKind = "edit"
-	OutboundTyping OutboundOpKind = "typing"
+	OutboundStatus   OutboundOpKind = "status"
+	OutboundDelta    OutboundOpKind = "delta"
+	OutboundTool     OutboundOpKind = "tool"
+	OutboundResponse OutboundOpKind = "response"
+	OutboundError    OutboundOpKind = "error"
 )
 
 // OutboundOp represents an operation sent to a transport.
@@ -47,6 +49,12 @@ type OutboundOp struct {
 	Content   string         `json:"content,omitempty"`
 	ChannelID string         `json:"channel_id,omitempty"`
 	MessageID string         `json:"message_id,omitempty"`
+
+	// Nostr-native fields.
+	Phase string `json:"phase,omitempty"`
+	Seq   int    `json:"seq,omitempty"`
+	Tool  string `json:"tool,omitempty"`
+	Fault string `json:"fault,omitempty"`
 }
 
 // RunRequest is the input to a harness run.

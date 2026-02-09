@@ -110,39 +110,45 @@ func TestParseTestBadFlag(t *testing.T) {
 }
 
 func TestParseRun(t *testing.T) {
-	t.Setenv("DISCORD_TOKEN", "test-token")
-	cmd, err := Parse([]string{"run", "--channel", "123456"})
+	t.Setenv("NOSTR_PRIVATE_KEY", "test-key")
+	t.Setenv("NOSTR_RELAYS", "wss://relay.example.com")
+	cmd, err := Parse([]string{"run"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cmd.Action != ActionRun {
 		t.Fatalf("expected action %q, got %q", ActionRun, cmd.Action)
 	}
-	if cmd.Token != "test-token" {
-		t.Fatalf("expected token %q, got %q", "test-token", cmd.Token)
+	if cmd.PrivateKey != "test-key" {
+		t.Fatalf("expected private key %q, got %q", "test-key", cmd.PrivateKey)
 	}
-	if len(cmd.Channels) != 1 || cmd.Channels[0] != "123456" {
-		t.Fatalf("expected channels [123456], got %v", cmd.Channels)
+	if len(cmd.Relays) != 1 || cmd.Relays[0] != "wss://relay.example.com" {
+		t.Fatalf("expected relays [wss://relay.example.com], got %v", cmd.Relays)
 	}
 	if cmd.WorkDir != "." {
 		t.Fatalf("expected workdir %q, got %q", ".", cmd.WorkDir)
 	}
+	if cmd.SessionKey != "default" {
+		t.Fatalf("expected session key %q, got %q", "default", cmd.SessionKey)
+	}
 }
 
-func TestParseRunMultipleChannels(t *testing.T) {
-	t.Setenv("DISCORD_TOKEN", "test-token")
-	cmd, err := Parse([]string{"run", "--channel", "111", "--channel", "222"})
+func TestParseRunMultipleRelays(t *testing.T) {
+	t.Setenv("NOSTR_PRIVATE_KEY", "test-key")
+	t.Setenv("NOSTR_RELAYS", "wss://relay1.example.com, wss://relay2.example.com")
+	cmd, err := Parse([]string{"run"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cmd.Channels) != 2 {
-		t.Fatalf("expected 2 channels, got %d", len(cmd.Channels))
+	if len(cmd.Relays) != 2 {
+		t.Fatalf("expected 2 relays, got %d: %v", len(cmd.Relays), cmd.Relays)
 	}
 }
 
 func TestParseRunCustomWorkDir(t *testing.T) {
-	t.Setenv("DISCORD_TOKEN", "test-token")
-	cmd, err := Parse([]string{"run", "--channel", "123", "--workdir", "/tmp/project"})
+	t.Setenv("NOSTR_PRIVATE_KEY", "test-key")
+	t.Setenv("NOSTR_RELAYS", "wss://relay.example.com")
+	cmd, err := Parse([]string{"run", "--workdir", "/tmp/project"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,8 +158,9 @@ func TestParseRunCustomWorkDir(t *testing.T) {
 }
 
 func TestParseRunWithConfig(t *testing.T) {
-	t.Setenv("DISCORD_TOKEN", "test-token")
-	cmd, err := Parse([]string{"run", "--channel", "123", "--config", "my.yaml"})
+	t.Setenv("NOSTR_PRIVATE_KEY", "test-key")
+	t.Setenv("NOSTR_RELAYS", "wss://relay.example.com")
+	cmd, err := Parse([]string{"run", "--config", "my.yaml"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,24 +169,40 @@ func TestParseRunWithConfig(t *testing.T) {
 	}
 }
 
-func TestParseRunMissingToken(t *testing.T) {
-	os.Unsetenv("DISCORD_TOKEN")
-	_, err := Parse([]string{"run", "--channel", "123"})
-	if err == nil {
-		t.Fatal("expected error for missing DISCORD_TOKEN")
+func TestParseRunCustomSessionKey(t *testing.T) {
+	t.Setenv("NOSTR_PRIVATE_KEY", "test-key")
+	t.Setenv("NOSTR_RELAYS", "wss://relay.example.com")
+	t.Setenv("NOSTR_SESSION_KEY", "my-session")
+	cmd, err := Parse([]string{"run"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd.SessionKey != "my-session" {
+		t.Fatalf("expected session key %q, got %q", "my-session", cmd.SessionKey)
 	}
 }
 
-func TestParseRunMissingChannel(t *testing.T) {
-	t.Setenv("DISCORD_TOKEN", "test-token")
+func TestParseRunMissingPrivateKey(t *testing.T) {
+	os.Unsetenv("NOSTR_PRIVATE_KEY")
+	t.Setenv("NOSTR_RELAYS", "wss://relay.example.com")
 	_, err := Parse([]string{"run"})
 	if err == nil {
-		t.Fatal("expected error for missing --channel")
+		t.Fatal("expected error for missing NOSTR_PRIVATE_KEY")
+	}
+}
+
+func TestParseRunMissingRelays(t *testing.T) {
+	t.Setenv("NOSTR_PRIVATE_KEY", "test-key")
+	os.Unsetenv("NOSTR_RELAYS")
+	_, err := Parse([]string{"run"})
+	if err == nil {
+		t.Fatal("expected error for missing NOSTR_RELAYS")
 	}
 }
 
 func TestParseRunBadFlag(t *testing.T) {
-	t.Setenv("DISCORD_TOKEN", "test-token")
+	t.Setenv("NOSTR_PRIVATE_KEY", "test-key")
+	t.Setenv("NOSTR_RELAYS", "wss://relay.example.com")
 	_, err := Parse([]string{"run", "--unknown-flag"})
 	if err == nil {
 		t.Fatal("expected error for bad flag")

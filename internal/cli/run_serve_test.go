@@ -8,9 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/klabo/tinyclaw/internal/orchestrator"
 	"github.com/klabo/tinyclaw/internal/plugin"
-	"github.com/klabo/tinyclaw/plugins/discord"
 )
 
 func TestRunBotBadConfig(t *testing.T) {
@@ -23,8 +21,9 @@ func TestRunBotBadConfig(t *testing.T) {
 
 	cmd := Command{
 		Action:     ActionRun,
-		Token:      "fake-token",
-		Channels:   []string{"123"},
+		PrivateKey: "fake-key",
+		Relays:     []string{"wss://relay.example.com"},
+		SessionKey: "test",
 		WorkDir:    ".",
 		ConfigFile: f.Name(),
 	}
@@ -37,15 +36,16 @@ func TestRunBotBadConfig(t *testing.T) {
 func TestRunBotConnectError(t *testing.T) {
 	old := connectFunc
 	defer func() { connectFunc = old }()
-	connectFunc = func(token string, channelIDs []string) (discord.Client, plugin.Transport, error) {
-		return nil, nil, fmt.Errorf("connect fail")
+	connectFunc = func(privateKey, sessionKey string, relayURLs []string) (plugin.Transport, error) {
+		return nil, fmt.Errorf("connect fail")
 	}
 
 	cmd := Command{
-		Action:   ActionRun,
-		Token:    "test-token",
-		Channels: []string{"123"},
-		WorkDir:  ".",
+		Action:     ActionRun,
+		PrivateKey: "test-key",
+		Relays:     []string{"wss://relay.example.com"},
+		SessionKey: "test",
+		WorkDir:    ".",
 	}
 	err := RunBot(cmd)
 	if err == nil {
@@ -56,34 +56,27 @@ func TestRunBotConnectError(t *testing.T) {
 // fakeRunBotTransport is a transport that closes immediately for RunBot tests.
 type fakeRunBotTransport struct{}
 
-func (f *fakeRunBotTransport) Subscribe(ctx context.Context) (<-chan plugin.InboundEvent, error) {
+func (f *fakeRunBotTransport) Subscribe(_ context.Context) (<-chan plugin.InboundEvent, error) {
 	ch := make(chan plugin.InboundEvent)
 	close(ch) // immediate close → RunServe returns immediately
 	return ch, nil
 }
-func (f *fakeRunBotTransport) Post(context.Context, plugin.OutboundOp) error { return nil }
-func (f *fakeRunBotTransport) Close() error                                  { return nil }
-
-type fakeRunBotClient struct{}
-
-func (f *fakeRunBotClient) SendMessage(string, string) (string, error)        { return "", nil }
-func (f *fakeRunBotClient) EditMessage(string, string, string) error          { return nil }
-func (f *fakeRunBotClient) ChannelTyping(string) error                        { return nil }
-func (f *fakeRunBotClient) SubscribeMessages(func(msg discord.Message)) error { return nil }
-func (f *fakeRunBotClient) Close() error                                      { return nil }
+func (f *fakeRunBotTransport) Post(_ context.Context, _ plugin.OutboundOp) error { return nil }
+func (f *fakeRunBotTransport) Close() error                                      { return nil }
 
 func TestRunBotHappyPath(t *testing.T) {
 	old := connectFunc
 	defer func() { connectFunc = old }()
-	connectFunc = func(token string, channelIDs []string) (discord.Client, plugin.Transport, error) {
-		return &fakeRunBotClient{}, &fakeRunBotTransport{}, nil
+	connectFunc = func(privateKey, sessionKey string, relayURLs []string) (plugin.Transport, error) {
+		return &fakeRunBotTransport{}, nil
 	}
 
 	cmd := Command{
-		Action:   ActionRun,
-		Token:    "test-token",
-		Channels: []string{"123"},
-		WorkDir:  t.TempDir(),
+		Action:     ActionRun,
+		PrivateKey: "test-key",
+		Relays:     []string{"wss://relay.example.com"},
+		SessionKey: "test",
+		WorkDir:    t.TempDir(),
 	}
 	err := RunBot(cmd)
 	if err != nil {
@@ -96,15 +89,16 @@ func TestRunBotServeError(t *testing.T) {
 	defer func() { connectFunc = old }()
 
 	subErrTransport := &stubServeTransport{subErr: fmt.Errorf("subscribe fail")}
-	connectFunc = func(token string, channelIDs []string) (discord.Client, plugin.Transport, error) {
-		return &fakeRunBotClient{}, subErrTransport, nil
+	connectFunc = func(privateKey, sessionKey string, relayURLs []string) (plugin.Transport, error) {
+		return subErrTransport, nil
 	}
 
 	cmd := Command{
-		Action:   ActionRun,
-		Token:    "test-token",
-		Channels: []string{"123"},
-		WorkDir:  t.TempDir(),
+		Action:     ActionRun,
+		PrivateKey: "test-key",
+		Relays:     []string{"wss://relay.example.com"},
+		SessionKey: "test",
+		WorkDir:    t.TempDir(),
 	}
 	err := RunBot(cmd)
 	if err == nil {
@@ -129,10 +123,11 @@ func TestNewRunIDFunc(t *testing.T) {
 
 func TestBuildServeParams(t *testing.T) {
 	cmd := Command{
-		Action:   ActionRun,
-		Token:    "test-token",
-		Channels: []string{"ch-1", "ch-2"},
-		WorkDir:  "/tmp/work",
+		Action:     ActionRun,
+		PrivateKey: "test-key",
+		Relays:     []string{"wss://relay.example.com"},
+		SessionKey: "test",
+		WorkDir:    "/tmp/work",
 	}
 	cfg := Config{BundleDir: "/tmp/bundles", LogLevel: "info"}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -151,15 +146,6 @@ func TestBuildServeParams(t *testing.T) {
 	}
 	if params.Routing.Default != "default" {
 		t.Fatalf("got default routing %q, want %q", params.Routing.Default, "default")
-	}
-	if len(params.Routing.Rules) != 2 {
-		t.Fatalf("expected 2 routing rules, got %d", len(params.Routing.Rules))
-	}
-	if params.Routing.Rules[0].Channel != "ch-1" {
-		t.Fatalf("got rule 0 channel %q, want %q", params.Routing.Rules[0].Channel, "ch-1")
-	}
-	if params.Routing.Rules[1].Channel != "ch-2" {
-		t.Fatalf("got rule 1 channel %q, want %q", params.Routing.Rules[1].Channel, "ch-2")
 	}
 	if params.Context == nil {
 		t.Fatal("expected non-nil context provider")
@@ -183,9 +169,11 @@ func TestBuildServeParams(t *testing.T) {
 
 func TestBuildServeParamsHarnessFactory(t *testing.T) {
 	cmd := Command{
-		Action:   ActionRun,
-		Channels: []string{"ch-1"},
-		WorkDir:  t.TempDir(),
+		Action:     ActionRun,
+		PrivateKey: "test-key",
+		Relays:     []string{"wss://relay.example.com"},
+		SessionKey: "test",
+		WorkDir:    t.TempDir(),
 	}
 	cfg := Defaults()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -201,37 +189,21 @@ func TestBuildServeParamsHarnessFactory(t *testing.T) {
 	}
 }
 
-func TestBuildServeParamsSingleChannel(t *testing.T) {
-	cmd := Command{
-		Action:   ActionRun,
-		Channels: []string{"only-one"},
-		WorkDir:  ".",
-	}
-	cfg := Defaults()
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	params := buildServeParams(cmd, cfg, &stubServeTransport{}, logger)
-	if len(params.Routing.Rules) != 1 {
-		t.Fatalf("expected 1 rule, got %d", len(params.Routing.Rules))
-	}
-	if params.Routing.Rules[0] != (orchestrator.Rule{Channel: "only-one", Profile: "default"}) {
-		t.Fatalf("unexpected rule: %+v", params.Routing.Rules[0])
-	}
-}
-
 func TestDefaultConnect(t *testing.T) {
-	// Test that defaultConnect returns an error for an invalid token.
-	_, _, err := defaultConnect("invalid-token", []string{"ch-1"})
+	// Test that defaultConnect returns an error for an invalid key.
+	_, err := defaultConnect("invalid-key", "session", []string{})
 	if err == nil {
-		t.Fatal("expected error for invalid token")
+		t.Fatal("expected error for invalid key or empty relays")
 	}
 }
 
 func TestBuildServeParamsSystemPrompt(t *testing.T) {
 	cmd := Command{
-		Action:   ActionRun,
-		Channels: []string{"ch-1"},
-		WorkDir:  t.TempDir(),
+		Action:     ActionRun,
+		PrivateKey: "test-key",
+		Relays:     []string{"wss://relay.example.com"},
+		SessionKey: "test",
+		WorkDir:    t.TempDir(),
 	}
 	cfg := Defaults()
 	cfg.SystemPrompt = "You are a helpful bot."
@@ -239,8 +211,6 @@ func TestBuildServeParamsSystemPrompt(t *testing.T) {
 	tr := &stubServeTransport{}
 
 	params := buildServeParams(cmd, cfg, tr, logger)
-	// The harness factory should create a runner with the system prompt.
-	// We verify it by calling the factory and checking the result is non-nil.
 	h, err := params.NewHarness()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -254,5 +224,30 @@ func TestRunBotLive(t *testing.T) {
 	if os.Getenv("LIVE") != "1" {
 		t.Skip("set LIVE=1 to run live bot tests")
 	}
-	t.Log("live bot test placeholder — requires real Discord token and channel")
+	t.Log("live bot test placeholder — requires real Nostr key and relays")
+}
+
+func TestParseRelayList(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{"wss://relay.example.com", []string{"wss://relay.example.com"}},
+		{"wss://r1.com, wss://r2.com", []string{"wss://r1.com", "wss://r2.com"}},
+		{"wss://r1.com,wss://r2.com,wss://r3.com", []string{"wss://r1.com", "wss://r2.com", "wss://r3.com"}},
+		{"  wss://r1.com , wss://r2.com  ", []string{"wss://r1.com", "wss://r2.com"}},
+		{"", nil},
+	}
+	for _, tt := range tests {
+		got := parseRelayList(tt.input)
+		if len(got) != len(tt.want) {
+			t.Errorf("parseRelayList(%q) = %v, want %v", tt.input, got, tt.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tt.want[i] {
+				t.Errorf("parseRelayList(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
+			}
+		}
+	}
 }

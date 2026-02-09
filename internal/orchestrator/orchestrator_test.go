@@ -177,36 +177,38 @@ func TestMapToTransport(t *testing.T) {
 		wantOps []plugin.OutboundOp
 	}{
 		{
-			name:    "delta is buffered (no ops)",
-			input:   plugin.RunEvent{Kind: plugin.RunEventDelta, Content: "chunk"},
-			wantOps: nil,
-		},
-		{
-			name:  "final maps to post",
-			input: plugin.RunEvent{Kind: plugin.RunEventFinal, Content: "done"},
+			name:  "status maps to OutboundStatus",
+			input: plugin.RunEvent{Kind: plugin.RunEventStatus, Phase: "thinking"},
 			wantOps: []plugin.OutboundOp{
-				{Kind: plugin.OutboundPost, Content: "done"},
+				{Kind: plugin.OutboundStatus, Phase: "thinking"},
 			},
 		},
 		{
-			name:  "fault maps to post with message",
-			input: plugin.RunEvent{Kind: plugin.RunEventFault, Message: "oops"},
+			name:  "delta maps to OutboundDelta with seq",
+			input: plugin.RunEvent{Kind: plugin.RunEventDelta, Content: "chunk"},
 			wantOps: []plugin.OutboundOp{
-				{Kind: plugin.OutboundPost, Content: "oops"},
+				{Kind: plugin.OutboundDelta, Content: "chunk", Seq: 1},
 			},
 		},
 		{
-			name:  "status maps to typing",
-			input: plugin.RunEvent{Kind: plugin.RunEventStatus},
-			wantOps: []plugin.OutboundOp{
-				{Kind: plugin.OutboundTyping},
-			},
-		},
-		{
-			name:  "tool maps to typing",
+			name:  "tool maps to OutboundTool",
 			input: plugin.RunEvent{Kind: plugin.RunEventTool, Tool: "bash"},
 			wantOps: []plugin.OutboundOp{
-				{Kind: plugin.OutboundTyping},
+				{Kind: plugin.OutboundTool, Tool: "bash"},
+			},
+		},
+		{
+			name:  "final maps to OutboundResponse",
+			input: plugin.RunEvent{Kind: plugin.RunEventFinal, Content: "done"},
+			wantOps: []plugin.OutboundOp{
+				{Kind: plugin.OutboundResponse, Content: "done"},
+			},
+		},
+		{
+			name:  "fault maps to OutboundError",
+			input: plugin.RunEvent{Kind: plugin.RunEventFault, Message: "oops", Fault: "fatal"},
+			wantOps: []plugin.OutboundOp{
+				{Kind: plugin.OutboundError, Content: "oops", Fault: "fatal"},
 			},
 		},
 		{
@@ -235,6 +237,18 @@ func TestMapToTransport(t *testing.T) {
 				if tr.ops[i].Content != want.Content {
 					t.Errorf("ops[%d].Content = %q, want %q", i, tr.ops[i].Content, want.Content)
 				}
+				if tr.ops[i].Phase != want.Phase {
+					t.Errorf("ops[%d].Phase = %q, want %q", i, tr.ops[i].Phase, want.Phase)
+				}
+				if tr.ops[i].Tool != want.Tool {
+					t.Errorf("ops[%d].Tool = %q, want %q", i, tr.ops[i].Tool, want.Tool)
+				}
+				if tr.ops[i].Fault != want.Fault {
+					t.Errorf("ops[%d].Fault = %q, want %q", i, tr.ops[i].Fault, want.Fault)
+				}
+				if tr.ops[i].Seq != want.Seq {
+					t.Errorf("ops[%d].Seq = %d, want %d", i, tr.ops[i].Seq, want.Seq)
+				}
 			}
 		})
 	}
@@ -259,14 +273,18 @@ func TestRunHappyPath(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(tr.ops) != 1 {
-		t.Fatalf("expected 1 transport op, got %d", len(tr.ops))
+	// Should have 2 ops: delta + response
+	if len(tr.ops) != 2 {
+		t.Fatalf("expected 2 transport ops, got %d: %+v", len(tr.ops), tr.ops)
 	}
-	if tr.ops[0].Kind != plugin.OutboundPost {
-		t.Fatalf("expected post, got %q", tr.ops[0].Kind)
+	if tr.ops[0].Kind != plugin.OutboundDelta {
+		t.Fatalf("expected delta, got %q", tr.ops[0].Kind)
 	}
-	if tr.ops[0].Content != "done" {
-		t.Fatalf("expected content %q, got %q", "done", tr.ops[0].Content)
+	if tr.ops[1].Kind != plugin.OutboundResponse {
+		t.Fatalf("expected response, got %q", tr.ops[1].Kind)
+	}
+	if tr.ops[1].Content != "done" {
+		t.Fatalf("expected content %q, got %q", "done", tr.ops[1].Content)
 	}
 }
 
@@ -528,14 +546,21 @@ func TestDeltaBuffering(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(tr.ops) != 1 {
-		t.Fatalf("expected 1 transport op, got %d: %+v", len(tr.ops), tr.ops)
+	// 2 deltas + 1 response = 3 ops
+	if len(tr.ops) != 3 {
+		t.Fatalf("expected 3 transport ops, got %d: %+v", len(tr.ops), tr.ops)
 	}
-	if tr.ops[0].Kind != plugin.OutboundPost {
-		t.Fatalf("expected post, got %q", tr.ops[0].Kind)
+	if tr.ops[0].Kind != plugin.OutboundDelta {
+		t.Fatalf("expected delta, got %q", tr.ops[0].Kind)
 	}
-	if tr.ops[0].Content != "Hello world" {
-		t.Fatalf("expected content %q, got %q", "Hello world", tr.ops[0].Content)
+	if tr.ops[1].Kind != plugin.OutboundDelta {
+		t.Fatalf("expected delta, got %q", tr.ops[1].Kind)
+	}
+	if tr.ops[2].Kind != plugin.OutboundResponse {
+		t.Fatalf("expected response, got %q", tr.ops[2].Kind)
+	}
+	if tr.ops[2].Content != "Hello world" {
+		t.Fatalf("expected content %q, got %q", "Hello world", tr.ops[2].Content)
 	}
 }
 
@@ -554,10 +579,12 @@ func TestDeltaBufferUsedWhenFinalEmpty(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(tr.ops) != 1 {
-		t.Fatalf("expected 1 transport op, got %d: %+v", len(tr.ops), tr.ops)
+	// 2 deltas + 1 response = 3 ops
+	if len(tr.ops) != 3 {
+		t.Fatalf("expected 3 transport ops, got %d: %+v", len(tr.ops), tr.ops)
 	}
-	if tr.ops[0].Content != "buffered content" {
-		t.Fatalf("expected content %q, got %q", "buffered content", tr.ops[0].Content)
+	// The final response uses buffered content when its own content is empty.
+	if tr.ops[2].Content != "buffered content" {
+		t.Fatalf("expected content %q, got %q", "buffered content", tr.ops[2].Content)
 	}
 }

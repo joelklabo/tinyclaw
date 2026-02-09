@@ -50,6 +50,7 @@ type Orchestrator struct {
 	logger      *slog.Logger
 	nowFn       func() time.Time
 	deltaBuffer strings.Builder
+	deltaSeq    int
 }
 
 // New creates an Orchestrator with the given dependencies.
@@ -158,26 +159,38 @@ func (o *Orchestrator) fail(err error) error {
 // mapToTransport maps a RunEvent to a transport operation.
 func (o *Orchestrator) mapToTransport(ctx context.Context, re plugin.RunEvent) error {
 	switch re.Kind {
+	case plugin.RunEventStatus:
+		return o.transport.Post(ctx, plugin.OutboundOp{
+			Kind:  plugin.OutboundStatus,
+			Phase: re.Phase,
+		})
 	case plugin.RunEventDelta:
+		o.deltaSeq++
 		o.deltaBuffer.WriteString(re.Content)
-		return nil
+		return o.transport.Post(ctx, plugin.OutboundOp{
+			Kind:    plugin.OutboundDelta,
+			Content: re.Content,
+			Seq:     o.deltaSeq,
+		})
+	case plugin.RunEventTool:
+		return o.transport.Post(ctx, plugin.OutboundOp{
+			Kind: plugin.OutboundTool,
+			Tool: re.Tool,
+		})
 	case plugin.RunEventFinal:
 		content := re.Content
 		if content == "" && o.deltaBuffer.Len() > 0 {
 			content = o.deltaBuffer.String()
 		}
 		return o.transport.Post(ctx, plugin.OutboundOp{
-			Kind:    plugin.OutboundPost,
+			Kind:    plugin.OutboundResponse,
 			Content: content,
 		})
 	case plugin.RunEventFault:
 		return o.transport.Post(ctx, plugin.OutboundOp{
-			Kind:    plugin.OutboundPost,
+			Kind:    plugin.OutboundError,
 			Content: re.Message,
-		})
-	case plugin.RunEventStatus, plugin.RunEventTool:
-		return o.transport.Post(ctx, plugin.OutboundOp{
-			Kind: plugin.OutboundTyping,
+			Fault:   re.Fault,
 		})
 	default:
 		return nil

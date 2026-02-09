@@ -283,9 +283,9 @@ func TestRunServeHarnessFactoryError(t *testing.T) {
 	tr.mu.Lock()
 	defer tr.mu.Unlock()
 	if len(tr.postOps) == 0 {
-		t.Fatal("expected error message posted to Discord")
+		t.Fatal("expected error message posted to transport")
 	}
-	if tr.postOps[0].Kind != plugin.OutboundPost {
+	if tr.postOps[0].Kind != plugin.OutboundError {
 		t.Fatalf("expected post op, got %q", tr.postOps[0].Kind)
 	}
 	if tr.postOps[0].ChannelID != "ch-1" {
@@ -341,9 +341,9 @@ func TestRunServeOrchestratorRunError(t *testing.T) {
 	tr.mu.Lock()
 	defer tr.mu.Unlock()
 	if len(tr.postOps) == 0 {
-		t.Fatal("expected error message posted to Discord")
+		t.Fatal("expected error message posted to transport")
 	}
-	if tr.postOps[0].Kind != plugin.OutboundPost {
+	if tr.postOps[0].Kind != plugin.OutboundError {
 		t.Fatalf("expected post op, got %q", tr.postOps[0].Kind)
 	}
 	if tr.postOps[0].ChannelID != "ch-1" {

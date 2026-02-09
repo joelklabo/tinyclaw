@@ -20,7 +20,7 @@ func TestRunScenario_HappyPath(t *testing.T) {
 			{Kind: plugin.RunEventFinal, Content: "world"},
 		},
 		ExpectedOps: []ExpectedOp{
-			{Kind: plugin.OutboundPost},
+			{Kind: plugin.OutboundResponse},
 		},
 	}
 
@@ -80,9 +80,10 @@ func TestRunScenario_MultipleEventTypes(t *testing.T) {
 			{Kind: plugin.RunEventFinal, Content: "done"},
 		},
 		ExpectedOps: []ExpectedOp{
-			{Kind: plugin.OutboundTyping},
-			{Kind: plugin.OutboundPost},
-			{Kind: plugin.OutboundPost},
+			{Kind: plugin.OutboundStatus},
+			{Kind: plugin.OutboundDelta},
+			{Kind: plugin.OutboundError},
+			{Kind: plugin.OutboundResponse},
 		},
 	}
 
