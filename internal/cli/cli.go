@@ -21,14 +21,14 @@ const (
 // Command holds the parsed CLI command and its parameters.
 type Command struct {
 	Action       Action
-	ScenarioFile string // test: optional scenario file
-	BundleDir    string // replay/browse: bundle directory
-	BundlePath   string // browse: specific bundle to inspect
-	ConfigFile   string // test/run: optional config file path
-	PrivateKey   string // run: Nostr private key (from env)
-	SessionKey   string // run: Nostr session key (from env)
+	ScenarioFile string   // test: optional scenario file
+	BundleDir    string   // replay/browse: bundle directory
+	BundlePath   string   // browse: specific bundle to inspect
+	ConfigFile   string   // test/run: optional config file path
+	PrivateKey   string   // run: Nostr private key (from env)
+	SessionKey   string   // run: Nostr session key (from env)
 	Relays       []string // run: Nostr relay URLs
-	WorkDir      string // run: working directory for Claude Code
+	WorkDir      string   // run: working directory for Claude Code
 }
 
 // Parse parses the given args (os.Args[1:] typically) into a Command.

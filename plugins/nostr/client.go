@@ -14,17 +14,32 @@ type Client interface {
 	Close() error
 }
 
+// relay abstracts a single Nostr relay connection for testability.
+type relay interface {
+	Publish(ctx context.Context, event gonostr.Event) error
+	Subscribe(ctx context.Context, filters gonostr.Filters, opts ...gonostr.SubscriptionOption) (*gonostr.Subscription, error)
+	QuerySync(ctx context.Context, filter gonostr.Filter) ([]*gonostr.Event, error)
+	Close() error
+}
+
+// relayConnectFunc connects to a single relay URL. Overridable for testing.
+var relayConnectFunc = defaultRelayConnect
+
+func defaultRelayConnect(ctx context.Context, url string) (relay, error) {
+	return gonostr.RelayConnect(ctx, url)
+}
+
 // LiveClient connects to Nostr relays using go-nostr.
 type LiveClient struct {
-	relays []*gonostr.Relay
+	relays []relay
 	urls   []string
 }
 
 // NewLiveClient creates a LiveClient connected to the given relay URLs.
 func NewLiveClient(ctx context.Context, urls []string) (*LiveClient, error) {
-	var relays []*gonostr.Relay
+	var relays []relay
 	for _, url := range urls {
-		relay, err := gonostr.RelayConnect(ctx, url)
+		r, err := relayConnectFunc(ctx, url)
 		if err != nil {
 			// Close any already-connected relays.
 			for _, r := range relays {
@@ -32,7 +47,7 @@ func NewLiveClient(ctx context.Context, urls []string) (*LiveClient, error) {
 			}
 			return nil, err
 		}
-		relays = append(relays, relay)
+		relays = append(relays, r)
 	}
 	return &LiveClient{relays: relays, urls: urls}, nil
 }

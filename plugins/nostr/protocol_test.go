@@ -336,6 +336,42 @@ func TestEncodeDecodeSpecialChars(t *testing.T) {
 	}
 }
 
+func TestEncodePromptEmptyMessage(t *testing.T) {
+	ev, err := EncodePrompt("", "", "pk", "run-1", "session-1")
+	if err != nil {
+		t.Fatalf("encode prompt: %v", err)
+	}
+	if ev.Kind != KindPrompt {
+		t.Fatalf("kind = %d, want %d", ev.Kind, KindPrompt)
+	}
+	ev.PubKey = "pk"
+	ev.ID = "ev-empty"
+	inbound, err := DecodeInbound(&ev)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if inbound.Content != "" {
+		t.Fatalf("content = %q, want empty", inbound.Content)
+	}
+}
+
+func TestEncodePromptSpecialCharacters(t *testing.T) {
+	msg := "Hello \"world\" \n\t 日本語 🎉 <script>alert('xss')</script>"
+	ev, err := EncodePrompt(msg, "think\ning", "pk", "run-1", "session-1")
+	if err != nil {
+		t.Fatalf("encode prompt: %v", err)
+	}
+	ev.PubKey = "pk"
+	ev.ID = "ev-special"
+	inbound, err := DecodeInbound(&ev)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if inbound.Content != msg {
+		t.Fatalf("content = %q, want %q", inbound.Content, msg)
+	}
+}
+
 // --- helpers ---
 
 func makeTestEvent(kind int, content string) gonostr.Event {

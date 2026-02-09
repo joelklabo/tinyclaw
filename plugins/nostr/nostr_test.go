@@ -94,6 +94,13 @@ func TestNewValidKey(t *testing.T) {
 	}
 }
 
+func TestNewInvalidPrivateKey(t *testing.T) {
+	_, err := New(&mockClient{}, "not-a-valid-hex-key", "s")
+	if err == nil {
+		t.Fatal("expected error for invalid private key")
+	}
+}
+
 // --- subscribe tests ---
 
 func TestSubscribeDecodesPromptEvents(t *testing.T) {
